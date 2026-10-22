@@ -1,6 +1,6 @@
 r"""Gera a página do Autocadinho: um único arquivo HTML, com as capturas de tela embutidas.
 
-Uso:  .venv\Scripts\python tools\make_site.py [saída]   (padrão: docs/site/index.html)
+Uso:  .venv\Scripts\python tools\make_site.py [saída] [--base-url URL]   (padrão: docs/site/index.html)
 
 As capturas vêm de docs/img (gere antes com tools\screenshots.py). Cada uma é convertida para WebP e
 embutida em Base64 num bloco JSON no fim da página; o navegador só decodifica uma imagem quando ela chega
@@ -9,6 +9,11 @@ borrada de poucas centenas de bytes no lugar.
 
 O botão de download aponta para a última release no GitHub. Quando o navegador consegue falar com a API
 do GitHub, ele troca pelo link direto do .msi, com a versão e o tamanho.
+
+Ao lado da página sai também o og.png (1200 × 630), a imagem que aparece quando o link é compartilhado
+(WhatsApp, Facebook, X, LinkedIn). As redes exigem o endereço completo da imagem: com --base-url (o endereço
+onde a página vai ficar, terminado em /), a página aponta para o og.png dessa pasta; sem ele, para o og.png
+do repositório no GitHub.
 """
 
 from __future__ import annotations
@@ -24,14 +29,24 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")  # só converte imagens: nenhuma janela
 
-from PySide6.QtCore import QBuffer, QByteArray, QIODevice, Qt  # noqa: E402
-from PySide6.QtGui import QGuiApplication, QImage  # noqa: E402
+from PySide6.QtCore import QBuffer, QByteArray, QIODevice, QRectF, Qt  # noqa: E402
+from PySide6.QtGui import (QColor, QFont, QFontDatabase, QFontMetricsF, QGuiApplication, QImage,  # noqa: E402
+                           QPainter, QPainterPath, QPen)
+from PySide6.QtSvg import QSvgRenderer  # noqa: E402
 
 from autocadinho import APP_NAME, REPO_URL, __date__, __version__  # noqa: E402
 
 IMG = ROOT / "docs" / "img"
 QUALITY = 86  # WebP com perda: texto da interface continua nítido e o arquivo fica com metade do PNG
 TINY_W = 40  # largura da miniatura borrada que aparece enquanto a imagem carrega
+
+# Título e resumo da página, também usados na prévia dos links compartilhados.
+SLOGAN = "Desenhos de obra simples, com as medidas certas"
+SUMMARY = ("Grátis e de código aberto, para Windows: plantas de obra com medidas de verdade, prontas para "
+           "imprimir em escala.")
+OG_W, OG_H = 1200, 630  # tamanho recomendado para a imagem da prévia (proporção 1,91 : 1)
+OG_LINE = "Vigas, pilares, portas e janelas com medidas de verdade, prontos para imprimir em escala."
+OG_ALT = "Autocadinho: desenhos de obra simples, com as medidas certas. Grátis e de código aberto."
 
 # chave -> (arquivo em docs/img, texto alternativo)
 SHOTS = {
@@ -85,6 +100,99 @@ def logo_svg(size: int) -> str:
     svg = svg.replace('width="512" height="512"', f'width="{size}" height="{size}" aria-hidden="true"')
     svg = "\n".join(line for line in svg.splitlines() if "<!--" not in line)
     return svg.replace('id="fundo"', f'id="fundo{size}"').replace("url(#fundo)", f"url(#fundo{size})")
+
+
+def _font(families: list[str], px: float, weight: QFont.Weight) -> QFont:
+    if not _font.loaded:  # a plataforma offscreen do Qt não enxerga as fontes do Windows sozinha
+        fonts = Path(os.environ.get("WINDIR", r"C:\Windows")) / "Fonts"
+        for name in ("segoeui.ttf", "seguisb.ttf", "segoeuib.ttf"):
+            if (fonts / name).exists():
+                QFontDatabase.addApplicationFont(str(fonts / name))
+        _font.loaded = True
+    have = set(QFontDatabase.families())
+    font = QFont(next((f for f in families if f in have), "Arial"))
+    font.setPixelSize(round(px))
+    font.setWeight(weight)
+    return font
+
+
+_font.loaded = False
+
+
+def make_og(out: Path) -> int:
+    """Imagem da prévia de links: logo, nome, slogan, resumo, selos e um pedaço da planta de exemplo."""
+    display = text_font = ["Segoe UI", "Arial"]
+    img = QImage(OG_W, OG_H, QImage.Format.Format_RGB32)
+    img.fill(QColor("#f6f7f9"))
+    p = QPainter(img)
+    p.setRenderHint(QPainter.RenderHint.Antialiasing)
+    p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+    p.setPen(QPen(QColor(29, 33, 39, 13), 1))  # a grade do fundo, como no topo da página
+    for x in range(0, OG_W, 30):
+        p.drawLine(x, 0, x, OG_H)
+    for y in range(0, OG_H, 30):
+        p.drawLine(0, y, OG_W, y)
+
+    # Planta de exemplo num cartão à direita, saindo pela borda
+    card = QRectF(652, 64, 600, 502)
+    for i in range(14, 0, -1):  # sombra macia
+        path = QPainterPath()
+        path.addRoundedRect(card.adjusted(-i, -i + 10, i, i + 10), 18 + i, 18 + i)
+        p.fillPath(path, QColor(16, 24, 40, 3))
+    path = QPainterPath()
+    path.addRoundedRect(card, 18, 18)
+    p.fillPath(path, QColor("#ffffff"))
+    shot = QImage(str(IMG / "planta.png"))
+    src = QRectF(180, 84, 848, 710)  # só a folha, sem a barra, os painéis e o controle de zoom do app
+    p.save()
+    p.setClipPath(path)
+    p.drawImage(card, shot, src)
+    p.restore()
+    p.setPen(QPen(QColor("#e3e6eb"), 1.5))
+    p.drawPath(path)
+
+    left, width = 72.0, 540.0
+    QSvgRenderer(str(ROOT / "assets" / "logo.svg")).render(p, QRectF(left - 6, 60, 76, 76))
+    p.setPen(QColor("#1d2127"))
+    p.setFont(_font(display, 38, QFont.Weight.Bold))
+    p.drawText(QRectF(left + 82, 60, width, 76), Qt.AlignmentFlag.AlignVCenter, APP_NAME)
+
+    first, second = SLOGAN.split(", ", 1)
+    lines = [(first + ",", "#1d2127"), (second + ".", "#e8722c")]
+    size = 60.0
+    while size > 30:
+        font = _font(display, size, QFont.Weight.Bold)
+        if max(QFontMetricsF(font).horizontalAdvance(t) for t, _c in lines) <= width:
+            break
+        size -= 1
+    y = 186.0
+    for t, color in lines:
+        p.setPen(QColor(color))
+        p.setFont(font)
+        p.drawText(QRectF(left, y, width + 40, size * 1.25), Qt.AlignmentFlag.AlignLeft, t)
+        y += size * 1.18
+    p.setPen(QColor("#5b6470"))
+    p.setFont(_font(text_font, 25, QFont.Weight.Normal))
+    p.drawText(QRectF(left, y + 22, width - 20, 140), Qt.TextFlag.TextWordWrap, OG_LINE)
+
+    x, y = left, 498.0
+    pill_font = _font(text_font, 21, QFont.Weight.DemiBold)
+    for label in ("Grátis", "Código aberto", "Windows"):
+        w = QFontMetricsF(pill_font).horizontalAdvance(label) + 40
+        rect = QRectF(x, y, w, 46)
+        pill = QPainterPath()
+        pill.addRoundedRect(rect, 23, 23)
+        p.fillPath(pill, QColor("#fdeee4"))
+        p.setPen(QPen(QColor(232, 114, 44, 80), 1.5))
+        p.drawPath(pill)
+        p.setPen(QColor("#c45a1c"))
+        p.setFont(pill_font)
+        p.drawText(rect, Qt.AlignmentFlag.AlignCenter, label)
+        x += w + 12
+    p.end()
+    data = encode(img, "PNG", -1)
+    out.write_bytes(data)
+    return len(data)
 
 
 # Ícones de traço (24 × 24), no mesmo espírito dos do app.
@@ -530,10 +638,19 @@ JS = r"""
 """
 
 
-def build(out: Path) -> int:
+def build(out: Path, base_url: str = "") -> int:
     app = QGuiApplication.instance() or QGuiApplication([])  # noqa: F841 (os plugins de imagem precisam dele)
     big, meta = load_shots()
     repo = REPO_URL.removeprefix("https://github.com/")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    og_size = make_og(out.parent / "og.png")
+    if base_url:
+        base_url = base_url.rstrip("/") + "/"
+        og_image = base_url + "og.png"
+        og_url = f'<meta property="og:url" content="{html.escape(base_url)}">\n'
+    else:
+        og_image = f"https://raw.githubusercontent.com/{repo}/main/docs/site/og.png"
+        og_url = ""
     latest = f"{REPO_URL}/releases/latest"
     v = __version__
 
@@ -571,6 +688,8 @@ def build(out: Path) -> int:
         "@@STEPS@@": "".join(steps), "@@KEYS@@": keys, "@@FAQ@@": faq, "@@DATA@@": data,
         "@@DL_MSI@@": dl("msi", "Baixar para Windows", True), "@@DL_ZIP@@": dl("zip", "Versão portátil", False),
         "@@DL_MSI_SM@@": f'<a class="btn primary sm" href="{latest}" data-dl="msi">{icon("download", 18)}Baixar</a>',
+        "@@SLOGAN@@": SLOGAN, "@@SUMMARY@@": html.escape(SUMMARY), "@@OG_IMAGE@@": html.escape(og_image),
+        "@@OG_URL@@": og_url, "@@OG_ALT@@": html.escape(OG_ALT), "@@OG_W@@": str(OG_W), "@@OG_H@@": str(OG_H),
         "@@REPO_URL@@": REPO_URL, "@@LATEST@@": latest, "@@APP@@": APP_NAME, "@@VERSION@@": v, "@@DATE@@": __date__,
         "@@I_GITHUB@@": icon("github", 18), "@@I_SUN@@": icon("sun", 18).replace('class="i"', 'class="i sun"'),
         "@@I_MOON@@": icon("moon", 18).replace('class="i"', 'class="i moon"'), "@@I_WIN@@": icon("shield", 18),
@@ -581,10 +700,9 @@ def build(out: Path) -> int:
     leftover = [t for t in page.split("@@")[1::2] if t.isupper() and len(t) < 20]
     if leftover:
         raise SystemExit(f"Marcadores sem valor: {leftover}")
-    out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(page, encoding="utf-8", newline="\n")
     kb = len(page.encode("utf-8")) / 1024
-    print(f"{out} ({kb:.0f} KB, {len(big)} capturas)")
+    print(f"{out} ({kb:.0f} KB, {len(big)} capturas) + og.png ({og_size / 1024:.0f} KB) -> {og_image}")
     return 0
 
 
@@ -593,9 +711,19 @@ TEMPLATE = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>@@APP@@: desenhos de obra simples, grátis e de código aberto</title>
-<meta name="description" content="Programa grátis e de código aberto para Windows para desenhar plantas de obra simples: vigas, pilares,
-paredes, portas, janelas e medidas em centímetros de verdade, prontas para imprimir em escala.">
+<title>@@APP@@ — @@SLOGAN@@</title>
+<meta name="description" content="@@SUMMARY@@">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="@@APP@@">
+<meta property="og:locale" content="pt_BR">
+<meta property="og:title" content="@@APP@@ — @@SLOGAN@@">
+<meta property="og:description" content="@@SUMMARY@@">
+@@OG_URL@@<meta property="og:image" content="@@OG_IMAGE@@">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="@@OG_W@@">
+<meta property="og:image:height" content="@@OG_H@@">
+<meta property="og:image:alt" content="@@OG_ALT@@">
+<meta name="twitter:card" content="summary_large_image">
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#e8722c">
 <link rel="icon" href="@@FAVICON@@">
@@ -779,8 +907,14 @@ paredes, portas, janelas e medidas em centímetros de verdade, prontas para impr
 
 
 def main() -> int:
-    out = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "docs" / "site" / "index.html"
-    return build(out)
+    args = sys.argv[1:]
+    base_url = ""
+    if "--base-url" in args:
+        i = args.index("--base-url")
+        base_url = args[i + 1]
+        del args[i:i + 2]
+    out = Path(args[0]) if args else ROOT / "docs" / "site" / "index.html"
+    return build(out, base_url)
 
 
 if __name__ == "__main__":

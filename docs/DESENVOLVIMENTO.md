@@ -181,8 +181,14 @@ de download não têm versão fixa: no HTML apontam para `releases/latest` (a p�
 dizem "Última versão"; quando o navegador consegue falar com a API do GitHub, viram o download direto do pacote
 mais novo, com versão e tamanho. Só é preciso gerar a página de novo quando o conteúdo muda (novidades, capturas).
 
+Junto sai o `docs/site/og.png` (1200 × 630), a imagem que aparece quando alguém compartilha o link (WhatsApp,
+Facebook, X, LinkedIn), com o título (nome e slogan) e o resumo das tags `og:*`. As redes só aceitam o endereço
+completo da imagem: sem opção, a página aponta para o `og.png` do repositório no GitHub; para publicar num site,
+gere com `--base-url` (o endereço da pasta onde a página vai ficar) e envie o `index.html` e o `og.png` juntos.
+
 ```bat
 .venv\Scripts\python tools\make_site.py
+.venv\Scripts\python tools\make_site.py publicar\index.html --base-url https://exemplo.com/autocadinho/
 ```
 
 Rode de novo depois de atualizar as capturas ou mudar a versão.
