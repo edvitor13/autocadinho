@@ -147,7 +147,7 @@ if ($prods.Count -ge 1) {
 
 # O app instalado funciona: abre o exemplo, gera PDF e imagem, traduz (verificar_exe.ps1).
 try {
-    & (Join-Path $PSScriptRoot "verificar_exe.ps1") -Exe $exe -Version $Version
+    & (Join-Path $PSScriptRoot "verificar_exe.ps1") -Exe $exe -Version $Version -Install msi
     Confere $true "autoverificação do app instalado"
 } catch {
     Write-Host $_

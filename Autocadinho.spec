@@ -65,9 +65,8 @@ a = Analysis(  # noqa: F821
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    # ssl e _hashlib levariam o OpenSSL (7 MB) sem uso: o app não acessa a internet, e o hashlib
-    # tem as próprias versões embutidas no Python.
-    excludes=["tkinter", "unittest", "pydoc", "pytest", "ssl", "_ssl", "_hashlib",
+    # O ssl (com o OpenSSL) fica: o atualizador consulta o GitHub e baixa as versões novas por HTTPS.
+    excludes=["tkinter", "unittest", "pydoc", "pytest",
               *(f"PySide6.{m}" for m in QT_UNUSED)],
     noarchive=False,
     optimize=0,

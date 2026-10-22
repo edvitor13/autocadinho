@@ -2,8 +2,9 @@
 
 As preferências e a cópia de recuperação de quem usa o app nunca são tocadas: as variáveis
 AUTOCADINHO_SETTINGS_DIR e AUTOCADINHO_DATA_DIR apontam para pastas temporárias antes de qualquer
-import do app. No Windows os testes usam a plataforma normal do Qt (a "offscreen" de lá não acha
-fontes) e as janelas são criadas com WA_DontShowOnScreen, sem aparecer na tela.
+import do app, e a busca automática de atualizações fica desligada. No Windows os testes usam a
+plataforma normal do Qt (a "offscreen" de lá não acha fontes) e as janelas são criadas com
+WA_DontShowOnScreen, sem aparecer na tela.
 """
 
 from __future__ import annotations
@@ -17,6 +18,7 @@ import pytest
 _TMP = tempfile.mkdtemp(prefix="autocadinho-tests-")
 os.environ["AUTOCADINHO_SETTINGS_DIR"] = os.path.join(_TMP, "settings")
 os.environ["AUTOCADINHO_DATA_DIR"] = os.path.join(_TMP, "data")
+os.environ["AUTOCADINHO_NO_UPDATE_CHECK"] = "1"  # nenhum teste consulta o GitHub
 if sys.platform != "win32":
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 

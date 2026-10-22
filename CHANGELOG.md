@@ -4,6 +4,33 @@ Todas as mudanças de cada versão do Autocadinho. O formato segue o
 [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/), e as versões seguem o
 [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
+## [1.1.0] - 2026-10-22
+
+### Novidades
+
+- **Símbolos:** porta, porta dupla, porta de correr, janela, escada, vaso sanitário, pia, chuveiro e o norte.
+  Portas e janelas encaixam em cima de uma viga ou linha, seguem a direção dela e abrem o vão na parede; a tecla
+  R vira o lado. No painel: largura do vão, espessura da parede, lado da dobradiça, para onde abre, degraus da
+  escada e o sentido dela.
+- **Formas:** círculo (e elipse), triângulo e polígono ponto a ponto, para terrenos e cômodos tortos. O
+  retângulo, o círculo e o polígono mostram a **área** em m², e o polígono, o perímetro e a medida de cada lado.
+- **Fontes:** a fonte do desenho (nomes e medidas) e a de cada texto, escolhidas entre as instaladas, com
+  prévia na lista; **itálico** nos textos.
+- **Setas** no começo e no fim das linhas.
+- **Atualização automática:** o app procura uma versão nova ao abrir (no máximo uma vez por dia, sem enviar
+  nada), mostra as novidades e instala com um clique. Baixa o `.msi` ou o `.zip`, conforme a instalação,
+  confere o SHA-256 e abre de novo sozinho. Dá para pular uma versão ou desligar a busca no menu `⋯`.
+- Na coluna de ferramentas, **Formas** e **Símbolos** abrem um menu com as opções; a coluna rola em telas
+  baixas.
+- Ajuda (F1), guias e capturas de tela com as novidades.
+
+### Mudanças
+
+- O executável agora leva o módulo `ssl` (HTTPS para o atualizador) e um marcador
+  `autocadinho-install.json` com o tipo de instalação.
+- Novos tipos e campos no arquivo `.cadinho`, sem mudar o `format` (a 1.0 abre os arquivos novos sem os
+  elementos novos). Detalhes em `docs/FORMATO.md`.
+
 ## [1.0.0] - 2026-10-22
 
 Primeira versão.
@@ -44,4 +71,5 @@ Primeira versão.
 
 - Instalador `.msi` por usuário (sem administrador), com atalhos e associação dos `.cadinho`, e `.zip` portátil.
 
+[1.1.0]: https://github.com/edvitor13/autocadinho/releases/tag/v1.1.0
 [1.0.0]: https://github.com/edvitor13/autocadinho/releases/tag/v1.0.0

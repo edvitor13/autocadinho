@@ -137,6 +137,47 @@ def format_length(cm: float, unit: str = "m", sep: str = ",") -> str:
     return f"{cm / 100:.2f}".replace(".", sep) + " m"
 
 
+def format_area(cm2: float, sep: str = ",") -> str:
+    """Área para mostrar, sempre em metros quadrados: "12,50 m²"."""
+    return f"{abs(cm2) / 10000:.2f}".replace(".", sep) + " m²"
+
+
+def polygon_area(pts: list[Point]) -> float:
+    """Área com sinal (fórmula do laço): positiva quando os pontos giram no sentido horário na tela."""
+    n = len(pts)
+    return sum(pts[i][0] * pts[(i + 1) % n][1] - pts[(i + 1) % n][0] * pts[i][1] for i in range(n)) / 2
+
+
+def polygon_centroid(pts: list[Point]) -> Point:
+    """Centro de massa da figura (média dos pontos se ela não tiver área)."""
+    a = polygon_area(pts)
+    n = len(pts)
+    if abs(a) < 1e-9:
+        return (sum(p[0] for p in pts) / n, sum(p[1] for p in pts) / n) if n else (0.0, 0.0)
+    cx = cy = 0.0
+    for i in range(n):
+        (x0, y0), (x1, y1) = pts[i], pts[(i + 1) % n]
+        f = x0 * y1 - x1 * y0
+        cx += (x0 + x1) * f
+        cy += (y0 + y1) * f
+    return (cx / (6 * a), cy / (6 * a))
+
+
+def point_in_polygon(p: Point, pts: list[Point]) -> bool:
+    inside = False
+    n = len(pts)
+    for i in range(n):
+        (x0, y0), (x1, y1) = pts[i], pts[(i + 1) % n]
+        if (y0 > p[1]) != (y1 > p[1]) and p[0] < (x1 - x0) * (p[1] - y0) / (y1 - y0) + x0:
+            inside = not inside
+    return inside
+
+
+def ellipse_points(cx: float, cy: float, rx: float, ry: float, n: int = 48) -> list[Point]:
+    """Contorno de uma elipse aproximado por `n` pontos (para encaixe e clique)."""
+    return [(cx + rx * math.cos(2 * math.pi * i / n), cy + ry * math.sin(2 * math.pi * i / n)) for i in range(n)]
+
+
 @dataclass(frozen=True)
 class Snap:
     """Resultado do encaixe: o ponto e o tipo ("point" = ponta/meio/canto, "line", "grid", "none")."""

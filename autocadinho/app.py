@@ -28,14 +28,15 @@ def self_test(win, out: str) -> None:
     """Conferência do executável empacotado, usada pelo CI (packaging/windows/verificar_exe.ps1).
 
     Com AUTOCADINHO_SELFTEST=relatorio.json, o app abre o desenho de exemplo, gera um PDF e uma imagem,
-    confere as traduções (a do app e a do próprio Qt), grava o relatório em JSON e fecha sozinho.
+    confere as traduções (a do app e a do próprio Qt) e o que o atualizador precisa (HTTPS e o tipo da
+    instalação), grava o relatório em JSON e fecha sozinho. Não acessa a internet.
     """
     import json
     import tempfile
 
     from PySide6.QtCore import QCoreApplication
 
-    from . import printing
+    from . import printing, updater
     report: dict = {"version": __version__}
     try:
         win.open_example()
@@ -49,6 +50,8 @@ def self_test(win, out: str) -> None:
         report["qt_pt_BR"] = QCoreApplication.translate("QLineEdit", "&Undo")
         i18n.set_language("en")
         report["en"] = i18n._("Viga")
+        report["https"] = updater.https_ok()
+        report["install"] = updater.install_info()["kind"]
         report["ok"] = True
     except Exception as e:  # noqa: BLE001 (o relatório diz o que falhou)
         report["ok"] = False

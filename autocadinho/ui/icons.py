@@ -12,9 +12,15 @@ from PySide6.QtCore import QPointF, QRectF, QSize, Qt
 from PySide6.QtGui import QBrush, QColor, QIcon, QLinearGradient, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtWidgets import QAbstractButton, QApplication, QLabel, QWidget
 
+from .. import render
+from ..model import SYMBOLS, Document, Symbol
 from . import theme
 
 DPR = 2.0
+# Medidas (cm) dos símbolos nos ícones: (largura, comprimento, parede, degraus); alguns ficam mais
+# encorpados para caber legíveis no quadradinho.
+SYMBOL_ICON = {"door": (80.0, 80.0, 16.0, 0), "door2": (120.0, 80.0, 16.0, 0), "sliding": (110.0, 15.0, 30.0, 0),
+               "window": (110.0, 15.0, 30.0, 0), "stairs": (200.0, 120.0, 0.0, 6)}
 
 
 def _pen(p: QPainter, c: QColor, w: float = 1.8) -> None:
@@ -75,6 +81,21 @@ def draw(name: str, p: QPainter, c: QColor) -> None:  # noqa: C901 (um ícone po
     elif name == "rect":
         _pen(p, c, 1.9)
         p.drawRoundedRect(QRectF(3.5, 6, 17, 12), 1.2, 1.2)
+    elif name == "ellipse":
+        _pen(p, c, 1.9)
+        p.drawEllipse(QPointF(12, 12), 8.2, 8.2)
+    elif name == "triangle":
+        _pen(p, c, 1.9)
+        _poly(p, (12, 4.5), (20.5, 19), (3.5, 19), close=True)
+    elif name == "poly":
+        _pen(p, c, 1.8)
+        pts = ((4, 9), (12.5, 4), (20.5, 9.5), (17.5, 20), (6, 18))
+        _poly(p, *pts, close=True)
+        _fill(p, c)
+        for x, y in pts:
+            p.drawEllipse(QPointF(x, y), 1.6, 1.6)
+    elif name.startswith("sym:"):
+        _symbol(p, c, name[4:])
     elif name == "dim":
         _pen(p, c, 1.5)
         _line(p, 4, 9, 4, 19)
@@ -289,6 +310,11 @@ def draw(name: str, p: QPainter, c: QColor) -> None:  # noqa: C901 (um ícone po
         _fill(p, c)
         for x, y in ((4, 5), (20, 5), (4, 19), (20, 19), (10, 19)):
             p.drawRect(QRectF(x - 1.6, y - 1.6, 3.2, 3.2))
+    elif name == "download":
+        _pen(p, c)
+        _line(p, 12, 3.5, 12, 15)
+        _poly(p, (7.5, 10.5), (12, 15), (16.5, 10.5))
+        _poly(p, (4, 15.5), (4, 20), (20, 20), (20, 15.5))
     elif name == "warning":
         _pen(p, c)
         _poly(p, (12, 3.5), (21, 19.5), (3, 19.5), close=True)
@@ -303,6 +329,28 @@ def draw(name: str, p: QPainter, c: QColor) -> None:  # noqa: C901 (um ícone po
     else:  # desconhecido: um quadradinho, para não quebrar
         _pen(p, c)
         p.drawRect(QRectF(5, 5, 14, 14))
+
+
+def _symbol(p: QPainter, c: QColor, shape: str) -> None:
+    """Ícone de um símbolo: o próprio desenho do símbolo, encolhido para o quadradinho de 24."""
+    _name, w, h = SYMBOLS.get(shape, ("", 80.0, 80.0))
+    w, h, wall, steps = SYMBOL_ICON.get(shape, (w, h, 0.0, 0))
+    sym = Symbol(shape=shape, w=w, h=h, wall=wall, steps=steps)
+    x0, y0, x1, y1 = sym.local_bounds()
+    stub = w * 0.22 if sym.in_wall() else 0.0  # pedaço de parede dos dois lados da porta ou da janela
+    x0, x1 = x0 - stub, x1 + stub
+    k = 21.0 / max(x1 - x0, y1 - y0, 1.0)
+    p.save()
+    p.translate(12, 12)
+    p.scale(k, k)
+    p.translate(-(x0 + x1) / 2, -(y0 + y1) / 2)
+    if stub:
+        _fill(p, c)
+        p.drawRect(QRectF(x0, -wall / 2, stub, wall))
+        p.drawRect(QRectF(x1 - stub, -wall / 2, stub, wall))
+    # Papel transparente: o vão na parede não pinta nada no ícone.
+    render.paint_element(p, sym, Document(), render.Style(QColor(c), QColor(0, 0, 0, 0), min_pen=1.5 / k), QColor(c))
+    p.restore()
 
 
 def _role_color(role: str) -> QColor:

@@ -3,8 +3,10 @@
     Monta o instalador .msi do Autocadinho com o WiX Toolset v5.
 
 .DESCRIPTION
-    Gera a licença em RTF e chama o `wix build` com packaging\windows\Autocadinho.wxs. Instala as
-    extensões do WiX (UI e Util) no cache global do usuário se ainda não estiverem lá.
+    Grava o autocadinho-install.json {"kind": "msi"} na pasta do PyInstaller (o atualizador do app lê
+    esse marcador para saber que deve baixar o .msi), gera a licença em RTF e chama o `wix build` com
+    packaging\windows\Autocadinho.wxs. Instala as extensões do WiX (UI e Util) no cache global do
+    usuário se ainda não estiverem lá.
 
     Requisitos: .NET SDK 6+ e o WiX como ferramenta do dotnet:
         dotnet tool install --global wix --version 5.0.2
@@ -53,6 +55,8 @@ foreach ($ext in @("WixToolset.UI.wixext", "WixToolset.Util.wixext")) {
 $Work = Join-Path $Repo "build\msi"
 New-Item -ItemType Directory -Force -Path $Work | Out-Null
 $Rtf = Join-Path $Work "License.rtf"
+& $Python (Join-Path $Repo "packaging\install_marker.py") $Src msi --version $Version | Out-Host
+if ($LASTEXITCODE -ne 0) { throw "Falha ao gravar o autocadinho-install.json." }
 # As saídas vão para a tela (Out-Host), não para o pipeline: quem chama este script não recebe lixo.
 & $Python (Join-Path $Repo "packaging\windows\license_rtf.py") (Join-Path $Repo "LICENSE") $Rtf | Out-Host
 if ($LASTEXITCODE -ne 0) { throw "Falha ao gerar a licença em RTF." }

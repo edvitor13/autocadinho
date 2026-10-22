@@ -24,8 +24,16 @@ SECTIONS = [
            "<b>R</b> deixa o pilar em pé ou deitado antes de colocar."),
         N_("<b>Medida</b>: arraste do começo ao fim do que quer medir. O valor é calculado e escrito sozinho; "
            "depois, arraste a bolinha do meio para afastar a linha da medida."),
-        N_("<b>Texto</b>: clique onde ele vai ficar, escreva e aperte <b>Enter</b>. <b>Linha</b> e "
-           "<b>Retângulo</b> servem para escadas, aberturas, lajes e detalhes."),
+        N_("<b>Texto</b>: clique onde ele vai ficar, escreva e aperte <b>Enter</b>. No painel, escolha a fonte, o "
+           "tamanho, negrito e itálico. A <b>Linha</b> serve para detalhes e paredes finas; ela pode ser tracejada "
+           "e ter seta na ponta."),
+        N_("<b>Formas</b>: retângulo, círculo, triângulo e polígono. O polígono é desenhado clicando em cada canto; "
+           "termine clicando no primeiro ponto, com dois cliques ou com <b>Enter</b>. Retângulos, círculos e "
+           "polígonos podem mostrar a <b>área</b> em m²."),
+        N_("<b>Símbolos</b>: porta, porta dupla, porta de correr, janela, escada, vaso sanitário, pia, chuveiro e o "
+           "norte. Clique em cima de uma viga ou linha e a porta ou a janela encaixa na parede, abre o vão e segue a "
+           "direção dela; a tecla <b>R</b> vira o lado. No painel dá para mudar a largura, o lado da dobradiça e "
+           "para onde a porta abre."),
     ]),
     (N_("Ajustando"), [
         N_("Com a ferramenta <b>Selecionar</b>, clique num desenho para escolher. O painel da direita mostra as "
@@ -33,7 +41,7 @@ SECTIONS = [
         N_("Arraste para mover. Arraste as bolinhas das pontas para esticar ou encurtar. Arraste o nome de uma "
            "viga ou de um pilar para tirá-lo de cima de outro desenho. Duplo clique muda um nome ou um texto."),
         N_("Cada desenho pode ter a sua cor (as prontas ou <b>Outra cor…</b>) e a sua espessura. Sem nada "
-           "selecionado, o painel mostra os ajustes do desenho: tamanho das letras, medidas em metros ou "
+           "selecionado, o painel mostra os ajustes do desenho: tamanho e fonte das letras, medidas em metros ou "
            "centímetros e os nomes automáticos (troque VIGA e P por outra palavra, ou deixe vazio)."),
         N_("Errou? <b>Ctrl+Z</b> desfaz (quantas vezes precisar) e <b>Ctrl+Y</b> refaz. A <b>Borracha</b> apaga "
            "o que você clicar."),
@@ -48,15 +56,22 @@ SECTIONS = [
            "para medir no papel com a régua (1 cm = 50 cm). Dali também dá para salvar em PDF ou como imagem, "
            "para mandar por e-mail ou WhatsApp."),
     ]),
+    (N_("Atualizações"), [
+        N_("Quando sair uma versão nova, o Autocadinho avisa com o botão <b>Atualizar para…</b>, no alto e na tela "
+           "inicial. Um clique mostra as novidades, baixa, confere e instala; o programa fecha e abre de novo "
+           "sozinho, sem mexer nos seus desenhos. A busca pode ser desligada no menu de mais opções."),
+    ]),
 ]
 
 SHORTCUTS = [
-    ("S · V · P · L · Q · M · T · E · H", N_("Ferramentas: Selecionar, Viga, Pilar, Linha, Retângulo, Medida, "
-                                            "Texto, Borracha e Mover a folha")),
+    ("S · V · P · L · Q · C · G · M · T · E · H", N_("Ferramentas: Selecionar, Viga, Pilar, Linha, Retângulo, "
+                                                    "Círculo, Polígono, Medida, Texto, Borracha e Mover a folha")),
     ("Esc", N_("Cancela o que está fazendo e volta para Selecionar")),
-    ("Shift", N_("Enquanto desenha: viga ou linha inclinada; no retângulo, um quadrado")),
+    ("Shift", N_("Enquanto desenha: viga ou linha inclinada; no retângulo, um quadrado; no círculo, um círculo "
+                 "perfeito")),
     ("Alt", N_("Enquanto desenha ou move: solta o encaixe")),
-    ("R", N_("Gira o que está selecionado (ou o próximo pilar)")),
+    ("R", N_("Gira o que está selecionado (ou o próximo pilar ou símbolo)")),
+    ("Enter · Backspace", N_("No polígono: termina a forma e desfaz o último ponto")),
     (N_("Setas"), N_("Movem o que está selecionado (com Shift, 10 vezes mais)")),
     ("Delete", N_("Apaga o que está selecionado")),
     ("Ctrl+Z · Ctrl+Y", N_("Desfaz e refaz")),

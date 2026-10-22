@@ -21,12 +21,14 @@ from .. import geometry as geo
 from .. import render
 from ..geometry import Point
 from ..i18n import _
-from ..model import (Beam, Dimension, Document, Element, Labeled, Line, Pillar, Rect, Segment, Text, new_id,
-                     selection_center)
+from ..model import (SYMBOLS, Beam, Dimension, Document, Element, Ellipse, Labeled, Line, Pillar, Polygon, Rect, Segment,
+                     Symbol, Text, new_id, selection_center)
 from . import theme
 
-TOOLS = ("select", "beam", "line", "pillar", "rect", "dim", "text", "erase", "pan")
-DRAW_TOOLS = ("beam", "line", "rect", "dim")
+TOOLS = ("select", "beam", "line", "pillar", "rect", "ellipse", "triangle", "poly", "dim", "text", "symbol", "erase",
+         "pan")
+DRAW_TOOLS = ("beam", "line", "rect", "ellipse", "triangle", "dim")  # clique e arraste (ou dois cliques)
+BOX_TOOLS = ("rect", "ellipse", "triangle")  # de um canto ao outro; Shift faz quadrado
 MIN_SCALE, MAX_SCALE = 0.02, 40.0
 HANDLE_PX = 10
 SNAP_PX = 10
@@ -93,6 +95,9 @@ class Canvas(QWidget):
         self._space = False
         self._editor: _InlineEditor | None = None
         self._pillar_turned = False
+        self._poly_pts: list[Point] = []  # cantos já clicados do polígono
+        self.symbol_shape = "door"  # símbolo da ferramenta Símbolos
+        self._sym_turn = 0  # giros de 90° do próximo símbolo (tecla R)
         self._fitted = False
         self.setMouseTracking(True)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
@@ -207,6 +212,17 @@ class Canvas(QWidget):
         self.hintChanged.emit(self.hint())
         self.update()
 
+    def set_symbol(self, shape: str) -> None:
+        """Escolhe o símbolo (porta, janela...) e liga a ferramenta Símbolos."""
+        if shape in SYMBOLS:
+            self.symbol_shape = shape
+            self._sym_turn = 0
+            if self.tool == "symbol":
+                self.toolChanged.emit("symbol")
+                self.hintChanged.emit(self.hint())
+            else:
+                self.set_tool("symbol")
+
     def hint(self) -> str:
         drawing = self._draw_start is not None
         t = self.tool
@@ -223,6 +239,23 @@ class Canvas(QWidget):
         if t == "rect":
             return _("Solte (ou clique) no outro canto. Shift faz um quadrado.") if drawing else \
                 _("Clique e arraste de um canto ao outro.")
+        if t == "ellipse":
+            return _("Solte (ou clique) no outro canto. Shift faz um círculo perfeito.") if drawing else \
+                _("Clique e arraste de um canto ao outro, como no Paint. Shift faz um círculo perfeito.")
+        if t == "triangle":
+            return _("Solte (ou clique) no outro canto. Depois, as bolinhas mudam cada ponta.") if drawing else \
+                _("Clique e arraste de um canto ao outro para fazer o triângulo.")
+        if t == "poly":
+            if self._poly_pts:
+                return _("Clique no próximo canto. Para terminar, clique no primeiro ponto, dê dois cliques ou aperte "
+                         "Enter. Backspace desfaz o último ponto.")
+            return _("Clique em cada canto da forma, um depois do outro. Segure Shift para lados inclinados.")
+        if t == "symbol":
+            name = _(SYMBOLS[self.symbol_shape][0])
+            if self.symbol_shape in ("door", "door2", "sliding", "window"):
+                return _("{nome}: clique em cima de uma viga ou linha para colocar na parede. A tecla R vira o lado.") \
+                    .format(nome=name)
+            return _("{nome}: clique para colocar. A tecla R gira.").format(nome=name)
         if t == "dim":
             return _("Solte (ou clique) onde a medida termina.") if drawing else \
                 _("Clique e arraste do começo ao fim do que quer medir.")
@@ -235,7 +268,7 @@ class Canvas(QWidget):
     def _update_cursor(self) -> None:
         if self._space or self.tool == "pan":
             self.setCursor(Qt.CursorShape.OpenHandCursor)
-        elif self.tool in DRAW_TOOLS or self.tool in ("pillar", "text"):
+        elif self.tool in DRAW_TOOLS or self.tool in ("pillar", "text", "poly", "symbol"):
             self.setCursor(Qt.CursorShape.CrossCursor)
         elif self.tool == "erase":
             self.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -254,6 +287,7 @@ class Canvas(QWidget):
         self._drag = None
         self._draw_start = None
         self._click_mode = False
+        self._poly_pts = []
         self._preview = None
         self._rubber_ids = []
         self._snap_mark = None
@@ -269,7 +303,7 @@ class Canvas(QWidget):
     def escape(self) -> None:
         if self._editor is not None:
             self.finish_editor(False)
-        elif self._draw_start is not None or self._drag is not None:
+        elif self._draw_start is not None or self._drag is not None or self._poly_pts:
             self.cancel_operation()
         elif self.selection:
             self.set_selection([])
@@ -318,6 +352,10 @@ class Canvas(QWidget):
             self._press_select(pos, w, mods)
         elif self.tool == "pillar":
             self._place_pillar(w)
+        elif self.tool == "poly":
+            self._press_poly(pos, w)
+        elif self.tool == "symbol":
+            self._place_symbol(w)
         elif self.tool == "text":
             self._place_text(w)
         elif self.tool == "erase":
@@ -338,6 +376,10 @@ class Canvas(QWidget):
             return
         if self.tool in DRAW_TOOLS and self._draw_start is not None:
             self._set_preview_end(self._draw_end(w))
+            self.update()
+            return
+        if self.tool == "poly" and self._poly_pts:
+            self._poly_preview(self._poly_next(w))
             self.update()
             return
         if d is None:
@@ -397,6 +439,9 @@ class Canvas(QWidget):
     def mouseDoubleClickEvent(self, e) -> None:  # noqa: N802
         if e.button() != Qt.MouseButton.LeftButton:
             return
+        if self.tool == "poly":
+            self._finish_poly()
+            return
         if self.tool != "select":
             self.mousePressEvent(e)
             return
@@ -413,7 +458,7 @@ class Canvas(QWidget):
             self.edit_text(el.id, "label")
 
     def contextMenuEvent(self, e) -> None:  # noqa: N802
-        if self._draw_start is not None or self._drag is not None:
+        if self._draw_start is not None or self._drag is not None or self._poly_pts:
             self.cancel_operation()
             return
         found = render.hit(self.doc, self.to_world(QPointF(e.pos())), self._tol(6))
@@ -435,8 +480,8 @@ class Canvas(QWidget):
 
     def leaveEvent(self, e) -> None:  # noqa: N802
         self.cursorMoved.emit(None)
-        if self.tool == "pillar" or self._hover_id:
-            self._preview = None if self.tool == "pillar" else self._preview
+        if self.tool in ("pillar", "symbol") or self._hover_id:
+            self._preview = None if self.tool in ("pillar", "symbol") else self._preview
             self._hover_id = None
             self._snap_mark = None
             self.update()
@@ -565,7 +610,10 @@ class Canvas(QWidget):
         elif self.tool == "pillar":
             self._preview = self._pillar_ghost(w)
             self.update()
-        elif self.tool in DRAW_TOOLS or self.tool == "text":
+        elif self.tool == "symbol":
+            self._preview = self._symbol_ghost(w)
+            self.update()
+        elif self.tool in DRAW_TOOLS or self.tool in ("text", "poly"):
             self.snap_point(w)
             self.update()
 
@@ -584,7 +632,7 @@ class Canvas(QWidget):
 
     def _draw_end(self, w: Point) -> Point:
         start = self._draw_start or w
-        if self.tool == "rect":
+        if self.tool in BOX_TOOLS:
             pt = self.snap_point(w)
             if QGuiApplication.keyboardModifiers() & Qt.KeyboardModifier.ShiftModifier:
                 pt = self._square(start, pt)
@@ -596,9 +644,14 @@ class Canvas(QWidget):
             return Beam(x1=a[0], y1=a[1], x2=b[0], y2=b[1], width=self.doc.beam_width)
         if self.tool == "line":
             return Line(x1=a[0], y1=a[1], x2=b[0], y2=b[1], width=max(1.0, round(self.doc.label_size * 0.12, 1)))
-        if self.tool == "rect":
+        thin = max(1.0, round(self.doc.label_size * 0.12, 1))
+        if self.tool in BOX_TOOLS:
             x, y, w, h = geo.rect_norm(a[0], a[1], b[0], b[1])
-            return Rect(x=x, y=y, w=w, h=h, width=max(1.0, round(self.doc.label_size * 0.12, 1)))
+            if self.tool == "ellipse":
+                return Ellipse(x=x, y=y, w=w, h=h, width=thin)
+            if self.tool == "triangle":  # de pé dentro do retângulo, como no Paint
+                return Polygon(points=[[x, y + h], [x + w / 2, y], [x + w, y + h]], width=thin)
+            return Rect(x=x, y=y, w=w, h=h, width=thin)
         return Dimension(x1=a[0], y1=a[1], x2=b[0], y2=b[1], offset=round(self.doc.label_size * 2.4))
 
     def _set_preview_end(self, end: Point) -> None:
@@ -614,7 +667,13 @@ class Canvas(QWidget):
         self._click_mode = False
         self._preview = None
         self._snap_mark = None
-        ok = el.w >= 1 and el.h >= 1 if isinstance(el, Rect) else el.length() >= 1  # type: ignore[union-attr]
+        if isinstance(el, (Rect, Ellipse)):
+            ok = el.w >= 1 and el.h >= 1
+        elif isinstance(el, Polygon):
+            r = render.element_bounds(el, self.doc)
+            ok = r.width() - el.width >= 1 and r.height() - el.width >= 1
+        else:
+            ok = el.length() >= 1  # type: ignore[union-attr]
         if ok:
             if isinstance(el, Beam):
                 el.label = self.doc.next_label(self.doc.beam_prefix)
@@ -645,6 +704,89 @@ class Canvas(QWidget):
         self.set_selection([p.id])
         self.changed.emit("add")
 
+    # -- polígono, ponto a ponto
+    def _poly_next(self, w: Point) -> Point:
+        last = self._poly_pts[-1] if self._poly_pts else None
+        return self.snap_point(w, start=last, ortho=last is not None)
+
+    def _poly_preview(self, cursor: Point | None) -> None:
+        pts = list(self._poly_pts) + ([cursor] if cursor is not None else [])
+        self._preview = Polygon(points=[list(q) for q in pts], closed=len(pts) > 2,
+                                width=max(1.0, round(self.doc.label_size * 0.12, 1)))
+
+    def _press_poly(self, pos: QPointF, w: Point) -> None:
+        if len(self._poly_pts) >= 3:
+            first = self.to_screen(self._poly_pts[0])
+            if abs(first.x() - pos.x()) <= SNAP_PX and abs(first.y() - pos.y()) <= SNAP_PX:
+                self._finish_poly()
+                return
+        pt = self._poly_next(w)
+        if self._poly_pts and geo.dist(pt, self._poly_pts[-1]) < 1e-6:
+            return
+        self._poly_pts.append(pt)
+        self._poly_preview(None)
+        self.hintChanged.emit(self.hint())
+        self.update()
+
+    def undo_poly_point(self) -> bool:
+        """Tira o último canto clicado do polígono (Backspace)."""
+        if not self._poly_pts:
+            return False
+        self._poly_pts.pop()
+        cursor = self._poly_next(self.to_world(self._last_pos)) if self._last_pos is not None else None
+        self._poly_preview(cursor if self._poly_pts else None)
+        if not self._poly_pts:
+            self._preview = None
+        self.hintChanged.emit(self.hint())
+        self.update()
+        return True
+
+    def _finish_poly(self) -> None:
+        pts = list(self._poly_pts)
+        self.cancel_operation()
+        if len(pts) < 3:
+            return
+        el = Polygon(points=[list(q) for q in pts], width=max(1.0, round(self.doc.label_size * 0.12, 1)))
+        self.doc.add(el)
+        self.set_selection([el.id])
+        self.changed.emit("add")
+
+    # -- símbolos
+    def _symbol_ghost(self, w: Point) -> Symbol:
+        shape = self.symbol_shape if self.symbol_shape in SYMBOLS else "door"
+        _name, sw, sh = SYMBOLS[shape]
+        sym = Symbol(shape=shape, w=sw, h=sh, angle=90.0 * self._sym_turn)
+        free = bool(QGuiApplication.keyboardModifiers() & Qt.KeyboardModifier.AltModifier)
+        if sym.in_wall() and self.snap_on and not free:
+            wall = render.wall_at(self.doc, w, self._tol(14))
+            if wall is not None:
+                q, ang, thick, (a, b) = wall
+                step = self.doc.snap_step
+                if step > 0 and abs(a[1] - b[1]) < 1e-6:
+                    q = (min(max(geo.snap_value(q[0], step), min(a[0], b[0])), max(a[0], b[0])), q[1])
+                elif step > 0 and abs(a[0] - b[0]) < 1e-6:
+                    q = (q[0], min(max(geo.snap_value(q[1], step), min(a[1], b[1])), max(a[1], b[1])))
+                sym.x, sym.y = q
+                sym.angle = ang + 180.0 * (self._sym_turn % 2)
+                sym.wall = thick
+                self._snap_mark = (q, "line")
+                return sym
+        sym.x, sym.y = self.snap_point(w)
+        return sym
+
+    def turn_symbol_ghost(self) -> None:
+        """Gira o próximo símbolo 90° (na parede, vira para o outro lado). Tecla R com a ferramenta Símbolos."""
+        self._sym_turn = (self._sym_turn + 1) % 4
+        if self._last_pos is not None:
+            self._preview = self._symbol_ghost(self.to_world(self._last_pos))
+        self.update()
+
+    def _place_symbol(self, w: Point) -> None:
+        sym = self._symbol_ghost(w)
+        self.doc.add(sym)
+        self.set_selection([sym.id])
+        self.changed.emit("add")
+
     def _place_text(self, w: Point) -> None:
         pt = self.snap_point(w)
         t = Text(x=pt[0], y=pt[1], text="", size=self.doc.label_size)
@@ -670,6 +812,13 @@ class Canvas(QWidget):
         if k == Qt.Key.Key_Escape:
             self.escape()
             return
+        if self.tool == "poly" and self._poly_pts:
+            if k in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+                self._finish_poly()
+                return
+            if k == Qt.Key.Key_Backspace:
+                self.undo_poly_point()
+                return
         arrows = {Qt.Key.Key_Left: (-1, 0), Qt.Key.Key_Right: (1, 0), Qt.Key.Key_Up: (0, -1), Qt.Key.Key_Down: (0, 1)}
         if k in arrows and self.selection:
             step = self.doc.snap_step if self.snap_on and self.doc.snap_step > 0 else 1.0
@@ -686,6 +835,8 @@ class Canvas(QWidget):
         if k == Qt.Key.Key_R and not e.modifiers():
             if self.tool == "pillar":
                 self.turn_pillar_ghost()
+            elif self.tool == "symbol":
+                self.turn_symbol_ghost()
             elif self.selection:
                 self.rotate_selection()
             return
@@ -707,9 +858,18 @@ class Canvas(QWidget):
         super().keyReleaseEvent(e)
 
     def _refresh_from_cursor(self) -> None:
-        if self._last_pos is not None and self.tool in DRAW_TOOLS and self._draw_start is not None:
-            self._set_preview_end(self._draw_end(self.to_world(self._last_pos)))
-            self.update()
+        if self._last_pos is None:
+            return
+        w = self.to_world(self._last_pos)
+        if self.tool in DRAW_TOOLS and self._draw_start is not None:
+            self._set_preview_end(self._draw_end(w))
+        elif self.tool == "poly" and self._poly_pts:
+            self._poly_preview(self._poly_next(w))
+        elif self.tool == "symbol":
+            self._preview = self._symbol_ghost(w)
+        else:
+            return
+        self.update()
 
     def focusOutEvent(self, e) -> None:  # noqa: N802
         self._space = False
@@ -720,8 +880,10 @@ class Canvas(QWidget):
         el = self.doc.get(el_id)
         if el is None:
             return
+        family = self.doc.font
         if field == "text" and isinstance(el, Text):
             current, size, center = el.text, el.size, (el.x, el.y)
+            family = el.font or self.doc.font
             if "\n" in current:
                 self.editRequested.emit(el_id)
                 return
@@ -738,6 +900,8 @@ class Canvas(QWidget):
         self.finish_editor(True)
         ed = _InlineEditor(self, el_id, field, is_new)
         f = QFont(ed.font())
+        if family:
+            f.setFamily(family)
         f.setPixelSize(int(min(max(size * self.scale * 0.9, 13), 40)))
         ed.setFont(f)
         ed.setText(current)
@@ -827,7 +991,7 @@ class Canvas(QWidget):
         mime = QMimeData()
         payload = json.dumps({"elements": [el.to_dict() for el in els]}, ensure_ascii=False)
         mime.setData(MIME, payload.encode("utf-8"))
-        mime.setText(", ".join(_(el.title) for el in els))
+        mime.setText(", ".join(_(el.name_key()) for el in els))
         QGuiApplication.clipboard().setMimeData(mime)
         return True
 
@@ -912,7 +1076,7 @@ class Canvas(QWidget):
             p.setBrush(theme.qcolor(t.accent, 0.08))
             p.drawRect(r)
         self._paint_measure(p, t)
-        if not self.doc.elements and self._preview is None and self._draw_start is None:
+        if not self.doc.elements and self._preview is None and self._draw_start is None and not self._poly_pts:
             self._paint_empty(p, t)
         p.end()
 
@@ -990,7 +1154,7 @@ class Canvas(QWidget):
             p.drawPath(path)
 
     def _measure_text(self) -> tuple[str, Point] | None:
-        el = self._preview if self._draw_start is not None else None
+        el = self._preview if self._draw_start is not None or self._poly_pts else None
         d = self._drag
         if el is None and d is not None and d.mode == "handle":
             el = self.doc.get(d.id)
@@ -998,8 +1162,17 @@ class Canvas(QWidget):
             return None
         if isinstance(el, (Segment, Dimension)):
             return render.fmt_len(el.length(), self.doc), el.p2
-        if isinstance(el, Rect):
+        if isinstance(el, Ellipse) and el.is_circle():
+            return f"Ø {render.fmt_len(el.w, self.doc)}", (el.x + el.w, el.y + el.h)
+        if isinstance(el, (Rect, Ellipse)):
             return f"{render.fmt_len(el.w, self.doc)} × {render.fmt_len(el.h, self.doc)}", (el.x + el.w, el.y + el.h)
+        if isinstance(el, Polygon) and len(el.points) > 1:
+            if self.tool == "triangle" and self._draw_start is not None:
+                (x0, y1), (_xm, y0), (x1, _y) = el.pts()
+                return f"{render.fmt_len(x1 - x0, self.doc)} × {render.fmt_len(y1 - y0, self.doc)}", (x1, y1)
+            if self.tool == "poly" and self._poly_pts:
+                a, b = el.pts()[-2], el.pts()[-1]
+                return render.fmt_len(geo.dist(a, b), self.doc), b
         return None
 
     def _paint_measure(self, p: QPainter, t: theme.Palette) -> None:

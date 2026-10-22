@@ -18,8 +18,9 @@ is not signed with a paid certificate.
 
 The installer itself is in Portuguese (the app's main audience), but the app is fully translated.
 
-- **Update:** install the newer `.msi` over the old one. It replaces the old version in the same folder and
-  keeps your language, theme and recent drawings.
+- **Update:** since version 1.1, Autocadinho tells you when a new version is out and installs it with one
+  click (see [Updates](#11-updates)). You can also install the newer `.msi` over the old one: it replaces the
+  old version in the same folder and keeps your language, theme and recent drawings.
 - **Uninstall:** Windows Settings › Apps › Autocadinho › Uninstall. Your drawings are never deleted.
 - **Portable:** download the `.zip`, extract it and run `Autocadinho.exe` from the extracted folder.
 
@@ -42,8 +43,10 @@ saved drawings with a thumbnail; right-click a card for *Open folder* and *Remov
 ![Drawing screen](img/desenho-en.png)
 
 - **Top bar:** Home, New, Open, Save, Undo, Redo, the orange **Print** button, the theme button and the `⋯`
-  menu (Save as, Save as PDF, Save as image, Language, Theme, example, How to use, About).
-- **Left column:** the tools. **Grid paper:** the drawing area, in real centimeters. The mouse wheel zooms;
+  menu (Save as, Save as PDF, Save as image, Language, Theme, example, updates, How to use, About). When a
+  new version is out, an **Update to…** button shows up too.
+- **Left column:** the tools. **Shapes** and **Symbols** (the buttons with a small triangle in the corner)
+  open a menu with the options. **Grid paper:** the drawing area, in real centimeters. The mouse wheel zooms;
   the buttons in the bottom corner also zoom and show the whole drawing.
 - **Right panel:** exact sizes and settings of the selection (or of the whole drawing when nothing is selected).
 - **Bottom bar:** a hint for the current tool, the **Grid**, **Snap** and **90° only** toggles, and the mouse
@@ -56,21 +59,46 @@ saved drawings with a thumbnail; right-click a card for *Open folder* and *Remov
 | Beam | `V` | Drag from start to end (or click, then click again). Beams get automatic names. Hold **Shift** for a sloped beam. Also good for walls and fences. |
 | Column | `P` | Click to place. Snaps to beam ends, corners and midpoints. **R** turns the next column upright or sideways. Also good for footings and boxes. |
 | Dimension | `M` | Drag across what you want to measure. The value is written automatically; drag the middle handle to move the dimension line away. |
-| Text | `T` | Click, type and press **Enter** (**Esc** cancels). Double-click to edit later. |
-| Line | `L` | Drag from start to end. Can be dashed. Stairs, openings, details. |
-| Rectangle | `Q` | Drag from corner to corner (**Shift**: square). Can be dashed, filled and show its sizes. Slabs, areas. |
+| Text | `T` | Click, type and press **Enter** (**Esc** cancels). Double-click to edit later. The panel has the **font** (any font installed), size, bold, italic and vertical text. |
+| Line | `L` | Drag from start to end. Can be dashed and have an **arrowhead** at either end. Thin walls, openings, details. |
+| Rectangle | `Q` | *Shapes* menu. Drag from corner to corner (**Shift**: square). Slabs, areas. |
+| Circle | `C` | *Shapes* menu. Drag from corner to corner (**Shift**: perfect circle; otherwise an ellipse). Round columns, water tanks, wells. Shows its diameter. |
+| Triangle | | *Shapes* menu. Drag from corner to corner; then drag each corner's handle. |
+| Polygon | `G` | *Shapes* menu. Click each corner. Finish by clicking the first point, double-clicking or pressing **Enter**; **Backspace** removes the last point. Plots and irregular rooms. |
+| Symbols | | *Symbols* menu: door, double door, sliding door, window, stairs, toilet, sink, shower, north arrow. Click to place. |
 | Eraser | `E` | Click what you want to delete, or drag over several things. |
 | Pan | `H` | Drag to move the sheet. In any tool, hold **Space** and drag (or use the middle mouse button). |
 
 Points **snap** to ends, midpoints, along other beams and to the grid; hold **Alt** to release the snap.
 **Esc** cancels and goes back to Select.
 
+Shapes can be dashed and filled, write each side's length and show their **area** in m². The polygon panel
+also shows the number of points and the **perimeter**.
+
+### Doors, windows and other symbols
+
+![Floor plan with doors, windows and bathroom fixtures](img/planta-en.png)
+
+Pick a symbol in the **Symbols** menu and click on the sheet.
+
+![Symbols menu](img/simbolos-en.png)
+
+- **Doors and windows snap into walls.** Hover over a beam or line: the symbol follows its direction and
+  thickness. When you click, it **opens the gap** in the wall, like a real floor plan. Before clicking, **R**
+  flips the side the door opens to.
+- Other symbols are placed with a click; **R** rotates them 90° before clicking.
+- In the panel: doors and windows have the *Opening width*, the *Wall* thickness (0 = no gap), *Hinge on the
+  other side* and *Opens to the other side* (the sliding door has *Mirror*). Stairs have length, width, the
+  number of **steps** (automatic, one every 28 cm, or any number) and *Reverse the direction*. Fixtures have
+  width and length; the north arrow has a size.
+
 ## 6. Selecting, moving and resizing
 
 With **Select** (`S`): click to select; **Shift+click** (or Ctrl+click) adds or removes; drag on an empty spot
 to select everything inside the box; **Ctrl+A** selects all. Drag to move; the **arrow keys** nudge (with
-Shift, ten times more). Drag the end handles of beams, lines and dimensions, and the corner handles of
-rectangles. Drag a beam's or column's **name** to move it off other drawings. Double-click edits a name or a
+Shift, ten times more). Drag the end handles of beams, lines and dimensions, the corner handles of
+rectangles and circles, each corner of triangles and polygons, and the end handles of doors and windows
+to change the opening. Drag a beam's or column's **name** to move it off other drawings. Double-click edits a name or a
 text. **R** rotates 90°, **Delete** deletes, **Ctrl+C / Ctrl+V / Ctrl+D** copy, paste and duplicate, and the
 right-click menu also has *Bring to front* and *Send to back*. **Ctrl+Z** undoes and **Ctrl+Y** redoes.
 
@@ -79,13 +107,17 @@ right-click menu also has *Bring to front* and *Send to back*. **Ctrl+Z** undoes
 - **Name:** the beam or column name, *Show the name*, *Vertical name*, *Put the name back in its automatic place*.
 - **Size:** type exact values and press Enter. A beam's **Length** moves its end point and keeps its start and
   direction; **Width** is its drawn thickness. Columns and rectangles have width and height.
-  *Write the length alongside* shows the length next to a beam or line.
+  Circles have *Perfect circle* and the **Diameter**. *Write the length alongside* shows the length next to a
+  beam or line.
+- **Area:** rectangles, circles and polygons show their area; *Write the area* puts it on the drawing.
 - **Color:** automatic (black on paper, light in the dark theme), red, blue, green, orange, brown, gray, or
   **+** for any other color.
 - **Rotate**, **Duplicate** and **Delete**. With several things selected, the panel changes all of them at once.
 
 With nothing selected, the panel shows the **drawing settings**: *Title* (printed at the top of the sheet),
-*Units* (meters or centimeters), *Text size* for names and dimensions, the size of *New beams* and
+*Units* (meters or centimeters), *Text size* and **Font** for names, dimensions and texts set to *Same as
+the drawing* (each font is previewed in the list; a font missing on another computer shows *(not
+installed)*), the size of *New beams* and
 *New columns*, the *Snap* step (or *No grid*), and the **Automatic names**: change BEAM to WALL, C to F, or
 leave it empty to draw without names.
 
@@ -117,11 +149,12 @@ Click **Print** (`Ctrl+P`). The preview shows exactly what will come out.
 
 | Key | Action |
 |---|---|
-| `S` `V` `P` `L` `Q` `M` `T` `E` `H` | Select, Beam, Column, Line, Rectangle, Dimension, Text, Eraser, Pan |
+| `S` `V` `P` `L` `Q` `C` `G` `M` `T` `E` `H` | Select, Beam, Column, Line, Rectangle, Circle, Polygon, Dimension, Text, Eraser, Pan |
 | `Esc` | Cancel and go back to Select |
-| `Shift` while drawing | Sloped beam or line; square rectangle |
+| `Shift` while drawing | Sloped beam, line or polygon side; square rectangle; perfect circle |
 | `Alt` while drawing or moving | Release the snap |
-| `R` | Rotate the selection (or turn the next column) |
+| `R` | Rotate the selection (or the next column or symbol; flips a door placed on a wall) |
+| `Enter` · `Backspace` | Polygon: finish the shape, remove the last point |
 | Arrows | Nudge the selection (`Shift`: ten times more) |
 | `Delete` | Delete the selection |
 | `Ctrl+Z` · `Ctrl+Y` | Undo and redo |
@@ -133,3 +166,21 @@ Click **Print** (`Ctrl+P`). The preview shows exactly what will come out.
 | `Space` + drag · middle button | Move the sheet |
 | `Ctrl+0` | Show the whole drawing |
 | `F1` | How to use |
+
+## 11. Updates
+
+![Update window](img/atualizar-en.png)
+
+When it opens, at most once a day, Autocadinho asks GitHub for the latest version. **Nothing is sent**: it
+is the same request a browser makes when opening the releases page.
+
+- When a new version is out, an **Update to…** button appears at the top, plus a notice on the home screen.
+- Click it to see **what's new**. **Update now** downloads the package, **verifies** it against the SHA-256
+  checksum published with the release (nothing is installed if it doesn't match) and asks before closing.
+  Unsaved drawings are handled as usual. Then the new version is installed and **opens again by itself**.
+- **Skip this version** hides the notice until the next one. **Not now** just closes the window.
+- In the `⋯` menu: **Check for updates…** checks right away, and **Check for updates automatically** turns the
+  automatic check on or off.
+
+`.msi` installs get the new `.msi`; the portable `.zip` gets the new `.zip`, in the same folder. Version 1.0
+did not have this feature yet: to leave it, download the new version once from the releases page.

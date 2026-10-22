@@ -11,35 +11,80 @@ import json
 import os
 import re
 import sys
+import threading
+import time
 
-from PySide6.QtCore import QDateTime, QLocale, QPoint, QStandardPaths, Qt, QTimer
-from PySide6.QtGui import QAction, QKeySequence
+from PySide6.QtCore import QDateTime, QLocale, QObject, QPoint, QPointF, QStandardPaths, Qt, QTimer, Signal
+from PySide6.QtGui import QAction, QColor, QKeySequence, QPainter, QPainterPath
 from PySide6.QtWidgets import (QButtonGroup, QFileDialog, QFrame, QGridLayout, QHBoxLayout, QLabel, QMainWindow, QMenu,
-                               QMessageBox, QSizePolicy, QStackedWidget, QStatusBar, QToolButton, QVBoxLayout,
-                               QWidget)
+                               QMessageBox, QScrollArea, QSizePolicy, QStackedWidget, QStatusBar, QToolButton,
+                               QVBoxLayout, QWidget)
 
-from .. import APP_NAME, FILE_EXT, REPO_URL, __date__, __version__, fileio, i18n, printing, render, samples
+from .. import APP_NAME, FILE_EXT, REPO_URL, __date__, __version__, fileio, i18n, printing, render, samples, updater
 from ..history import History
 from ..i18n import N_, _
-from ..model import Document
+from ..model import SYMBOLS, Document
 from . import icons, prefs, theme
 from .canvas import Canvas
+from .flyout import Flyout
 from .home import HomePage
 from .properties import PropertiesPanel
 
-# (ferramenta, nome no botão, tecla de atalho). As teclas não mudam com o idioma.
+# (ferramenta, nome, tecla de atalho ou ""). As teclas não mudam com o idioma.
 TOOLS = [
     ("select", N_("Selecionar"), "S"),
     ("beam", N_("Viga"), "V"),
     ("pillar", N_("Pilar"), "P"),
     ("line", N_("Linha"), "L"),
     ("rect", N_("Retângulo"), "Q"),
+    ("ellipse", N_("Círculo"), "C"),
+    ("triangle", N_("Triângulo"), ""),
+    ("poly", N_("Polígono"), "G"),
     ("dim", N_("Medida"), "M"),
     ("text", N_("Texto"), "T"),
+    ("symbol", N_("Símbolos"), ""),
     ("erase", N_("Borracha"), "E"),
     ("pan", N_("Mover\nfolha"), "H"),
 ]
-TOOL_GROUPS_AFTER = {"select", "rect", "text"}  # linha separadora depois destes
+TOOL_INFO = {name: (label, key) for name, label, key in TOOLS}
+# Grupos da coluna: um botão que abre uma janelinha para escolher a forma ou o símbolo.
+GROUPS = {
+    "shapes": (N_("Formas"), ("rect", "ellipse", "triangle", "poly")),
+    "symbols": (N_("Símbolos"), tuple(SYMBOLS)),
+}
+RAIL = ["select", "beam", "pillar", "line", "shapes", "dim", "text", "symbols", "erase", "pan"]
+TOOL_GROUPS_AFTER = {"select", "shapes", "symbols"}  # linha separadora depois destes
+
+
+def rail_key(tool: str) -> str:
+    """Botão da coluna que representa a ferramenta (o do grupo, para formas e símbolos)."""
+    if tool == "symbol":
+        return "symbols"
+    return "shapes" if tool in GROUPS["shapes"][1] else tool
+
+
+class _UpdateBridge(QObject):
+    """Traz o resultado da consulta de versão (feita numa thread) de volta para a interface."""
+
+    found = Signal(object)  # (Release ou None, erro, manual)
+
+
+class _GroupButton(QToolButton):
+    """Botão da coluna que abre uma janelinha de opções (um triangulozinho no canto avisa)."""
+
+    def paintEvent(self, e) -> None:  # noqa: N802
+        super().paintEvent(e)
+        t = theme.current()
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        r = self.rect()
+        x, y, s = r.right() - 5.0, r.bottom() - 5.0, 6.0
+        path = QPainterPath(QPointF(x, y - s))
+        path.lineTo(x, y)
+        path.lineTo(x - s, y)
+        path.closeSubpath()
+        p.fillPath(path, QColor(t.accent if self.isChecked() else t.faint))
+        p.end()
 RECOVERY_DELAY_MS = 4000
 MERGE_FROM_CANVAS = {"nudge"}  # passos da área de desenho que se juntam quando seguidos (setas do teclado)
 
@@ -58,6 +103,9 @@ class MainWindow(QMainWindow):
         self._saved_state: str | None = None
         self._has_doc = False
         self._actions: dict[str, QAction] = {}
+        self._release: updater.Release | None = None
+        self._update_bridge = _UpdateBridge()
+        self._update_bridge.found.connect(self._update_found)
         self._recovery_timer = QTimer(self)
         self._recovery_timer.setSingleShot(True)
         self._recovery_timer.setInterval(RECOVERY_DELAY_MS)
@@ -71,6 +119,7 @@ class MainWindow(QMainWindow):
         if geo is not None:
             self.restoreGeometry(geo)
         self._apply_titlebar()
+        QTimer.singleShot(4000, self._auto_check_update)
 
     # ------------------------------------------------------------------------------ montagem
     def _build(self) -> None:
@@ -97,6 +146,7 @@ class MainWindow(QMainWindow):
         self.home.exampleRequested.connect(self.open_example)
         self.home.backRequested.connect(self.show_editor)
         self.home.recentRequested.connect(self.open_path)
+        self.home.updateRequested.connect(self.show_update)
 
         editor = QWidget()
         col = QVBoxLayout(editor)
@@ -131,6 +181,7 @@ class MainWindow(QMainWindow):
         c.set_tool(old.tool if old is not None else "select")
         self._on_view()
         self._update_theme_button()
+        self._show_update_badges()
         self._refresh()
 
     def _flat(self, text: str, icon_name: str, slot, tip: str = "", primary: bool = False) -> QToolButton:
@@ -187,6 +238,13 @@ class MainWindow(QMainWindow):
         row.addWidget(self.undo_btn)
         row.addWidget(self.redo_btn)
         row.addStretch(1)
+        self.update_btn = self._flat("", "download", self.show_update, _("Ver as novidades e atualizar"))
+        self.update_btn.setObjectName("Update")
+        self.update_btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        icons.bind(self.update_btn, "download", "accent", 18)
+        self.update_btn.setVisible(False)
+        row.addWidget(self.update_btn)
+        row.addSpacing(6)
         row.addWidget(self._flat(_("Imprimir"), "print", self.print_dialog,
                                  _("Imprimir ou salvar em PDF, com escala (Ctrl+P)"), primary=True))
         row.addSpacing(8)
@@ -223,32 +281,57 @@ class MainWindow(QMainWindow):
             act.setChecked(name == theme.current().name)
         menu.addSeparator()
         menu.addAction(icons.icon("plan"), _("Abrir o desenho de exemplo"), self.open_example)
+        menu.addAction(icons.icon("download"), _("Procurar atualizações…"), lambda: self.check_updates(manual=True))
+        auto = menu.addAction(_("Procurar atualizações sozinho"))
+        auto.setCheckable(True)
+        auto.setChecked(self.auto_update_enabled())
+        auto.setToolTip(_("Ao abrir, no máximo uma vez por dia, o {app} pergunta ao GitHub qual é a última versão. "
+                          "Nada é enviado.").format(app=APP_NAME))
+        auto.toggled.connect(self._set_auto_update)
         menu.addAction(icons.icon("help"), _("Como usar") + "	F1", self.show_help)
         menu.addAction(icons.icon("info"), _("Sobre o Autocadinho"), self.show_about)
 
     def _tool_rail(self) -> QWidget:
+        # Numa tela baixa (notebook de 768 px), a coluna rola em vez de cortar os botões de baixo.
+        scroll = QScrollArea()
+        scroll.setObjectName("ToolRailScroll")
+        scroll.setFixedWidth(88)
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
         rail = QWidget()
         rail.setObjectName("ToolRail")
-        rail.setFixedWidth(88)
         col = QVBoxLayout(rail)
         col.setContentsMargins(8, 10, 8, 10)
         col.setSpacing(3)
         self._tool_group = QButtonGroup(rail)
         self._tool_group.setExclusive(True)
         self._tool_buttons: dict[str, QToolButton] = {}
-        for name, label, key in TOOLS:
-            b = QToolButton()
+        self._flyout: Flyout | None = None
+        for name in RAIL:
+            if name in GROUPS:
+                b = _GroupButton()
+                label = _(GROUPS[name][0])
+                if name == "shapes":
+                    tip = _("Formas: retângulo (Q), círculo (C), triângulo e polígono (G)")
+                else:
+                    tip = _("Símbolos: portas, janelas, escada, louças e o norte")
+                b.clicked.connect(lambda _c=False, n=name: self.open_flyout(n))
+            else:
+                b = QToolButton()
+                label = _(TOOL_INFO[name][0])
+                tip = f"{label.replace(chr(10), ' ')} ({TOOL_INFO[name][1]})"
+                b.clicked.connect(lambda _c=False, n=name: self.canvas.set_tool(n))
             b.setObjectName("Tool")
             b.setCheckable(True)
-            b.setText(_(label))
+            b.setText(label)
             b.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
-            icons.bind(b, name, "muted", 22, on_role="accent")
-            b.setToolTip(f"{_(label).replace(chr(10), ' ')} ({key})")
+            icons.bind(b, {"shapes": "rect", "symbols": "sym:door"}.get(name, name), "muted", 22, on_role="accent")
+            b.setToolTip(tip)
             b.setCursor(Qt.CursorShape.PointingHandCursor)
-            b.setMinimumHeight(58)
+            b.setMinimumHeight(54)
             # O QToolButton tem largura fixa pelo texto; aqui todos ocupam a coluna inteira, com o ícone no meio.
             b.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-            b.clicked.connect(lambda _c=False, n=name: self.canvas.set_tool(n))
             self._tool_group.addButton(b)
             self._tool_buttons[name] = b
             col.addWidget(b)
@@ -259,7 +342,33 @@ class MainWindow(QMainWindow):
                 col.addWidget(sep)
                 col.addSpacing(3)
         col.addStretch(1)
-        return rail
+        scroll.setWidget(rail)
+        return scroll
+
+    def open_flyout(self, group: str) -> Flyout:
+        """Abre, ao lado do botão do grupo, a janelinha para escolher a forma ou o símbolo."""
+        if self._flyout is not None:
+            self._flyout.close()
+        b = self._tool_buttons[group]
+        title, members = GROUPS[group]
+        if group == "shapes":
+            items = [(m, _(TOOL_INFO[m][0]), m, TOOL_INFO[m][1]) for m in members]
+            current = self.canvas.tool
+            columns = 2
+        else:
+            items = [(m, _(SYMBOLS[m][0]), f"sym:{m}", "") for m in members]
+            current = self.canvas.symbol_shape if self.canvas.tool == "symbol" else None
+            columns = 3
+        fly = Flyout(self, _(title), items, current, columns)
+        fly.chosen.connect(lambda m: self.canvas.set_tool(m) if group == "shapes" else self.canvas.set_symbol(m))
+        fly.closed.connect(self._flyout_closed)
+        self._flyout = fly
+        fly.popup(b.mapToGlobal(QPoint(b.width() + 10, -10)))
+        return fly
+
+    def _flyout_closed(self) -> None:
+        self._flyout = None
+        self._on_tool(self.canvas.tool)  # fechou sem escolher: o botão certo volta a ficar marcado
 
     def _canvas_area(self) -> QWidget:
         area = QWidget()
@@ -362,7 +471,8 @@ class MainWindow(QMainWindow):
         self._action("zoom_out", _("Afastar"), lambda: c.zoom_at(1 / 1.25), ["Ctrl+-"])
         self._action("help", _("Como usar"), self.show_help, ["F1"])
         for name, label, key in TOOLS:
-            self._action(f"tool:{name}", _(label), lambda _c=False, n=name: c.set_tool(n), [key])
+            if key:
+                self._action(f"tool:{name}", _(label), lambda _c=False, n=name: c.set_tool(n), [key])
 
     # ------------------------------------------------------------------------------ estado
     def _state(self) -> str:
@@ -432,9 +542,14 @@ class MainWindow(QMainWindow):
         self._refresh()
 
     def _on_tool(self, name: str) -> None:
-        b = self._tool_buttons.get(name)
+        key = rail_key(name)
+        b = self._tool_buttons.get(key)
         if b is not None:
             b.setChecked(True)
+            if key == "shapes":
+                icons.bind(b, name, "muted", 22, on_role="accent")
+            elif key == "symbols":
+                icons.bind(b, f"sym:{self.canvas.symbol_shape}", "muted", 22, on_role="accent")
         self.hint_label.setText(self.canvas.hint())
         if not self.canvas.selection:
             self.panel.rebuild()
@@ -769,6 +884,100 @@ class MainWindow(QMainWindow):
     def show_help(self) -> None:
         from .help_dialog import HelpDialog
         HelpDialog(self).exec()
+
+    # ------------------------------------------------------------------------------ atualizações
+    def auto_update_enabled(self) -> bool:
+        return prefs.get_bool("auto_update", True)
+
+    def _set_auto_update(self, on: bool) -> None:
+        prefs.settings().setValue("auto_update", on)
+        self._show_update_badges()
+
+    def _auto_check_update(self) -> None:
+        if updater.auto_check_disabled() or not self.auto_update_enabled():
+            return
+        try:
+            last = float(prefs.settings().value("update_last_check", 0) or 0)
+        except (TypeError, ValueError):
+            last = 0.0
+        if time.time() - last >= updater.CHECK_EVERY_S:
+            self.check_updates(manual=False)
+
+    def check_updates(self, manual: bool = False) -> None:
+        """Consulta a última versão numa thread; o resultado volta por `_update_found`."""
+        bridge = self._update_bridge
+
+        def run() -> None:
+            try:
+                rel, err = updater.check(), ""
+            except updater.UpdateError as exc:
+                rel, err = None, str(exc)
+            bridge.found.emit((rel, err, manual))
+
+        threading.Thread(target=run, daemon=True).start()
+
+    def _update_found(self, payload) -> None:
+        from .update_dialog import error_text
+        rel, err, manual = payload
+        s = prefs.settings()
+        s.setValue("update_last_check", time.time())
+        if rel is None:
+            if manual:
+                self._inform(_("Atualizações"), error_text(err))
+            return
+        if not updater.is_newer(rel):
+            s.remove("update_seen")
+            self._release = None
+            self._show_update_badges()
+            if manual:
+                self._inform(_("Atualizações"),
+                             _("Você já está na versão mais recente ({versao}).").format(versao=__version__))
+            return
+        s.setValue("update_seen", rel.tag)
+        self._release = rel
+        if manual:
+            self.show_update()
+        else:
+            self._show_update_badges()
+
+    def _inform(self, title: str, text: str) -> None:
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.Information)
+        box.setWindowTitle(title)
+        box.setText(text)
+        box.addButton(QMessageBox.StandardButton.Ok)
+        box.exec()
+
+    def _pending_tag(self) -> str:
+        """Versão nova a oferecer: a da última consulta, mesmo de outro dia (sem consultar de novo).
+        Vazio se não há, se a pessoa pulou essa versão ou se desligou a busca."""
+        s = prefs.settings()
+        if self._release is not None:
+            tag = self._release.tag
+        elif self.auto_update_enabled():
+            tag = str(s.value("update_seen", "") or "")
+        else:
+            return ""
+        if updater.parse_version(tag) <= updater.current_version():
+            return ""
+        return "" if str(s.value("update_skip", "") or "") == tag else tag
+
+    def _show_update_badges(self) -> None:
+        """Botão "Atualizar para…" no alto e aviso na tela inicial, se houver versão nova."""
+        version = self._pending_tag().lstrip("v")
+        self.update_btn.setText(_("Atualizar para {versao}").format(versao=version) if version else "")
+        self.update_btn.setVisible(bool(version))
+        self.home.set_update(version)
+
+    def show_update(self) -> None:
+        if self._release is None:
+            self.check_updates(manual=True)
+            return
+        from .update_dialog import UpdateDialog
+        dlg = UpdateDialog(self, self._release)
+        dlg.exec()
+        dlg.deleteLater()
+        self._show_update_badges()
 
     def show_about(self) -> None:
         text = (f"<h3>{APP_NAME} {__version__}</h3>"

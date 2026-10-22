@@ -5,7 +5,8 @@
 .DESCRIPTION
     Roda o executável com AUTOCADINHO_SELFTEST (veja self_test em autocadinho/app.py), com as
     preferências e os dados numa pasta temporária, e confere o relatório: desenho de exemplo aberto,
-    PDF e imagem gerados, tradução para o inglês e textos do próprio Qt em português.
+    PDF e imagem gerados, tradução para o inglês, textos do próprio Qt em português, HTTPS para o
+    atualizador e, com -Install, o tipo de instalação lido do autocadinho-install.json.
 
     Pode rodar no seu computador: não mexe nas suas preferências nem nos seus desenhos. A janela do
     app aparece por alguns segundos e fecha sozinha.
@@ -16,6 +17,7 @@
 param(
     [Parameter(Mandatory = $true)][string]$Exe,
     [string]$Version = "",
+    [string]$Install = "",
     [int]$TimeoutSec = 120
 )
 
@@ -62,5 +64,7 @@ if ($r.pdf -lt 1000) { $falhas += "o PDF não foi gerado" }
 if ($r.png -lt 1000) { $falhas += "a imagem não foi gerada" }
 if ($r.en -ne "Beam") { $falhas += "sem a tradução para o inglês (autocadinho/locales fora do pacote?)" }
 if ($r.qt_pt_BR -ne "&Desfazer") { $falhas += "textos do Qt sem português (qtbase_pt_BR.qm fora do pacote?)" }
+if ($r.https -ne $true) { $falhas += "sem HTTPS para o atualizador (ssl fora do pacote?)" }
+if ($Install -and $r.install -ne $Install) { $falhas += "instalação '$($r.install)', esperada '$Install' (autocadinho-install.json)" }
 if ($falhas.Count -gt 0) { throw ("Autoverificação: " + ($falhas -join "; ")) }
 Write-Host "Autoverificação ok: versão $($r.version), PDF de $($r.pdf) bytes, imagem de $($r.png) bytes."

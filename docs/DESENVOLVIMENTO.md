@@ -30,6 +30,7 @@ A única dependência de execução é o `PySide6-Essentials` (Qt 6: Core, Gui, 
 | `AUTOCADINHO_SETTINGS_DIR` | Preferências num `.ini` nessa pasta, em vez do registro do Windows. Os testes e as ferramentas usam sempre uma pasta temporária. |
 | `AUTOCADINHO_DATA_DIR` | Pasta da cópia de recuperação, em vez de `%LOCALAPPDATA%\Autocadinho`. |
 | `AUTOCADINHO_SELFTEST` | Caminho de um `.json`: o app faz a autoverificação, grava o relatório e fecha (veja [Executável](#executável)). |
+| `AUTOCADINHO_NO_UPDATE_CHECK` | Com qualquer valor, desliga a busca automática de atualizações (os testes ligam). O menu `⋯` › *Procurar atualizações…* continua funcionando. |
 
 ## Testes
 
@@ -44,13 +45,15 @@ A única dependência de execução é o `PySide6-Essentials` (Qt 6: Core, Gui, 
 | `tests/test_history_fileio.py` | Desfazer/refazer e junção de passos; gravar e ler; gravação atômica; cópia de recuperação |
 | `tests/test_render_printing.py` | Caixas dos nomes, clique, alças, limites; folha impressa, escalas, papéis, PDF, PNG e miniatura |
 | `tests/test_i18n.py` | Catálogo completo (via `tools/i18n_extract.py`), marcadores e tags iguais, datas por idioma |
-| `tests/test_ui.py` | A janela de verdade usada com mouse e teclado: desenhar, encaixar, selecionar, mover, painel, arquivos, recuperação depois de "queda de energia", idioma, tema, impressão |
+| `tests/test_shapes.py` | Círculo, polígono e símbolos: geometria, JSON, pintura, clique, alças, portas encaixando na parede e abrindo o vão, fontes, menus de Formas e Símbolos |
+| `tests/test_updater.py` | Atualizador sem internet: versões, escolha do pacote, consulta simulada, SHA-256, marcador de instalação, script do PowerShell (sintaxe e caminhos com apóstrofo) e o PowerShell sobrevivendo ao app sem console |
+| `tests/test_ui.py` | A janela de verdade usada com mouse e teclado: desenhar, encaixar, selecionar, mover, painel, arquivos, recuperação depois de "queda de energia", idioma, tema, impressão, aviso de atualização |
 
 Regras dos testes:
 
 - O `tests/conftest.py` aponta `AUTOCADINHO_SETTINGS_DIR` e `AUTOCADINHO_DATA_DIR` para uma pasta temporária
   **antes** de importar o app: os testes nunca mexem nas preferências nem na cópia de recuperação de quem usa
-  o app no mesmo computador.
+  o app no mesmo computador. Ele também liga `AUTOCADINHO_NO_UPDATE_CHECK`: nenhum teste acessa a internet.
 - No Windows os testes usam a plataforma normal do Qt (a `offscreen` não tem fontes no Windows) e as janelas são
   criadas com `WA_DontShowOnScreen`: existem e recebem eventos, mas não aparecem na tela. Em outros sistemas
   o conftest usa `offscreen`.
@@ -74,11 +77,14 @@ que acompanha o PySide6 e que o executável também leva.
 ## Capturas de tela e ícones
 
 ```bat
-.venv\Scripts\python tools\screenshots.py     :: docs/img/*.png (português e -en), com o desenho de exemplo
+.venv\Scripts\python tools\screenshots.py     :: docs/img/*.png (português e -en)
 .venv\Scripts\python tools\make_assets.py     :: assets/logo.ico, documento.ico, logo-256.png, logo-512.png
 ```
 
-As capturas rodam com preferências temporárias e janelas fora da tela. O logotipo é desenhado em código
+As capturas rodam com preferências temporárias e janelas fora da tela: tela inicial, o mezanino de exemplo
+(claro e escuro), a planta de uma casa com portas e janelas (montada no próprio `tools/screenshots.py`), o menu de
+símbolos aberto, a impressão e a janela de atualização. Elas também alimentam a página do app
+(`tools/make_site.py`, abaixo). O logotipo é desenhado em código
 (`icons.paint_logo`); o `assets/logo.svg` é o mesmo desenho, mantido à mão para quem precisar de um vetor.
 
 ## Executável
@@ -90,14 +96,19 @@ build.bat
 1. Instala o PyInstaller e o pytest no `.venv`, se faltarem.
 2. Gera `dist\Autocadinho\` com o `Autocadinho.exe` (receita em `Autocadinho.spec`).
 3. Confere o executável com `packaging\windows\verificar_exe.ps1`: abre o app com `AUTOCADINHO_SELFTEST`, que
-   abre o desenho de exemplo, gera um PDF e uma imagem, confere o inglês e os textos do Qt em português, grava
-   um relatório e fecha. A janela aparece por alguns segundos. As preferências de quem roda não são tocadas.
-4. Se o WiX estiver instalado, gera o instalador `.msi` (abaixo).
-5. Gera o `.zip` portátil com `packaging\make_zip.py` (que tenta de novo se o antivírus estiver lendo o `.exe`).
+   abre o desenho de exemplo, gera um PDF e uma imagem, confere o inglês, os textos do Qt em português e o HTTPS
+   (o `ssl` que o atualizador usa), grava um relatório e fecha. A janela aparece por alguns segundos. As
+   preferências de quem roda não são tocadas. Com `-Install msi` ou `-Install zip`, confere também o marcador.
+4. Se o WiX estiver instalado, gera o instalador `.msi` (abaixo), com o marcador `{"kind": "msi"}`.
+5. Grava o marcador `{"kind": "zip"}` e gera o `.zip` portátil com `packaging\make_zip.py` (que tenta de novo se
+   o antivírus estiver lendo o `.exe`).
+
+O marcador `autocadinho-install.json`, gravado ao lado do `.exe` por `packaging\install_marker.py`, diz ao
+atualizador qual pacote baixar. Sem ele, o executável se comporta como o `.zip`.
 
 O `Autocadinho.spec` corta o que o app não usa: módulos do Qt além de Core, Gui, Widgets e PrintSupport,
-plugins que puxariam Quick, Qml, Pdf, Svg e Network, o OpenGL por software (20 MB), o OpenSSL e as traduções do
-Qt que não são o português. Se o app passar a usar outro módulo do Qt, tire-o de `QT_UNUSED` (e, se for o caso,
+plugins que puxariam Quick, Qml, Pdf, Svg e Network, o OpenGL por software (20 MB) e as traduções do Qt que não
+são o português. O `ssl` do Python (com o OpenSSL) fica, porque o atualizador usa HTTPS. Se o app passar a usar outro módulo do Qt, tire-o de `QT_UNUSED` (e, se for o caso,
 de `QT_DLLS_UNUSED`) e rode o `build.bat`: a autoverificação mostra se o pacote abre.
 
 ## Instalador `.msi`
@@ -107,7 +118,7 @@ Feito com o [WiX Toolset](https://wixtoolset.org/) v5, que precisa do .NET SDK:
 ```bat
 dotnet tool install --global wix --version 5.0.2
 powershell -NoProfile -ExecutionPolicy Bypass -File packaging\windows\build_msi.ps1 ^
-    -SourceDir dist\Autocadinho -Output dist\Autocadinho-1.0.0-windows-x64.msi
+    -SourceDir dist\Autocadinho -Output dist\Autocadinho-1.1.0-windows-x64.msi
 ```
 
 - Instalação **por usuário**, sem pedir administrador, em `%LOCALAPPDATA%\Programs\Autocadinho`, com atalho no
@@ -137,12 +148,18 @@ sobrou nada. **Ele roda só no CI**: no seu computador, desinstalaria o seu Auto
   `docs/releases/<tag>.md` (ou as notas automáticas do GitHub, se o arquivo não existir). Tags com hífen
   (`v1.1.0-beta`) viram pré-lançamento.
 
+O atualizador do app depende dessa release: ele procura os arquivos que terminam em `-windows-x64.msi` e
+`-windows-x64.zip` e o `SHA256SUMS.txt`, e mostra o texto da release como "novidades". **Não renomeie esses
+arquivos** nem publique uma release sem o `SHA256SUMS.txt`: quem já tem o app instalado deixaria de receber a
+atualização automática. Pré-lançamentos não são oferecidos (a API `releases/latest` ignora).
+
 ## Publicar uma versão
 
 1. Suba a versão em `autocadinho/__init__.py` (`__version__` e `__date__`) e em `pyproject.toml`. O CI confere
    que as duas batem e que a tag bate com elas. O MSI só aceita números (`x.y.z`).
 2. Escreva a seção da versão no [CHANGELOG.md](../CHANGELOG.md) e o texto da página da release em
-   `docs/releases/vX.Y.Z.md` (para quem vai baixar: o que mudou, em linguagem simples).
+   `docs/releases/vX.Y.Z.md` (para quem vai baixar: o que mudou, em linguagem simples). Esse texto também
+   aparece dentro do app, na janela de atualização de quem tem a versão anterior.
 3. Faça o commit no `main`, envie e espere o CI ficar verde (é ele que testa o `.msi`).
 4. Crie e envie a tag:
 
@@ -152,6 +169,22 @@ sobrou nada. **Ele roda só no CI**: no seu computador, desinstalaria o seu Auto
    ```
 
 5. O CI publica a release. Confira a página e baixe o `.msi` para um teste rápido.
+6. Com a release no ar, um app da versão anterior oferece a atualização (menu `⋯` › *Procurar atualizações…*
+   mostra na hora).
+
+## Página do app
+
+`tools/make_site.py` gera `docs/site/index.html`: uma página única, em português, com as
+funcionalidades, o guia rápido e o botão de download. As capturas de `docs/img` entram em Base64 (convertidas
+para WebP, bem menores) e só são decodificadas quando chegam perto da tela, então a página abre leve. O botão de
+download aponta para a última release e, quando o navegador consegue falar com a API do GitHub, mostra a versão
+e o tamanho do `.msi`.
+
+```bat
+.venv\Scripts\python tools\make_site.py
+```
+
+Rode de novo depois de atualizar as capturas ou mudar a versão.
 
 ## Estilo do código
 

@@ -6,8 +6,8 @@ import os
 
 from PySide6.QtCore import QDateTime, QLocale, QSize, Qt, QUrl, Signal
 from PySide6.QtGui import QDesktopServices, QIcon, QImage, QPixmap
-from PySide6.QtWidgets import (QFrame, QGridLayout, QHBoxLayout, QLabel, QMenu, QScrollArea, QSizePolicy, QToolButton,
-                               QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QFrame, QGridLayout, QHBoxLayout, QLabel, QMenu, QPushButton, QScrollArea, QSizePolicy,
+                               QToolButton, QVBoxLayout, QWidget)
 
 from .. import APP_NAME, fileio
 from ..i18n import _
@@ -23,12 +23,14 @@ class HomePage(QScrollArea):
     exampleRequested = Signal()
     backRequested = Signal()
     recentRequested = Signal(str)
+    updateRequested = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setWidgetResizable(True)
         self.setFrameShape(QFrame.Shape.NoFrame)
         self._has_doc = False
+        self._update_version = ""
         self._cols = 0
         self._thumbs: dict[str, tuple[float, QPixmap | None]] = {}
         self.refresh()
@@ -71,6 +73,9 @@ class HomePage(QScrollArea):
         hero.addLayout(texts, 1)
         lay.addLayout(hero)
         lay.addSpacing(30)
+        if self._update_version:
+            lay.addWidget(self._update_card())
+            lay.addSpacing(18)
 
         actions = QHBoxLayout()
         actions.setSpacing(12)
@@ -121,6 +126,33 @@ class HomePage(QScrollArea):
         width = max(CARD_W, min(1000, self.viewport().width() - 64))
         if abs(width - getattr(self, "_content_width", 0)) > 2:
             self.refresh()
+
+    def set_update(self, version: str) -> None:
+        """Mostra (ou, com "", esconde) o aviso de versão nova."""
+        if version != self._update_version:
+            self._update_version = version
+            self.refresh()
+
+    def _update_card(self) -> QFrame:
+        card = QFrame()
+        card.setObjectName("TipCard")
+        row = QHBoxLayout(card)
+        row.setContentsMargins(16, 12, 12, 12)
+        row.setSpacing(12)
+        ic = QLabel()
+        icons.bind(ic, "download", "accent", 24)
+        row.addWidget(ic)
+        text = QLabel(_("<b>Versão {versao} disponível.</b> Veja as novidades e instale com um clique; os seus "
+                        "desenhos continuam onde estão.").format(versao=self._update_version))
+        text.setObjectName("TipText")
+        text.setWordWrap(True)
+        row.addWidget(text, 1)
+        go = QPushButton(_("Atualizar"))
+        go.setObjectName("Primary")
+        go.setCursor(Qt.CursorShape.PointingHandCursor)
+        go.clicked.connect(self.updateRequested.emit)
+        row.addWidget(go)
+        return card
 
     def _big(self, text: str, icon_name: str, slot, primary: bool = False) -> QToolButton:
         b = QToolButton()

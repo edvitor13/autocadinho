@@ -7,19 +7,20 @@ desfazer...); mudanças que vêm dele mesmo não o refazem, para não atrapalhar
 
 from __future__ import annotations
 
+from functools import lru_cache
 from typing import TYPE_CHECKING, Callable
 
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QColor
+from PySide6.QtGui import QColor, QFont, QFontDatabase
 from PySide6.QtWidgets import (QAbstractSpinBox, QButtonGroup, QCheckBox, QColorDialog, QComboBox, QDoubleSpinBox, QFrame,
                                QGridLayout,
                                QHBoxLayout, QLabel, QLineEdit, QPlainTextEdit, QPushButton, QScrollArea, QSizePolicy,
-                               QToolButton, QVBoxLayout, QWidget)
+                               QSpinBox, QToolButton, QVBoxLayout, QWidget)
 
 from .. import geometry as geo
 from .. import i18n, render
 from ..i18n import N_, _
-from ..model import Beam, Dimension, Element, Labeled, Pillar, Rect, Segment, Text
+from ..model import Beam, Dimension, Element, Ellipse, Labeled, Line, Pillar, Polygon, Rect, Segment, Symbol, Text
 from . import icons, theme
 
 if TYPE_CHECKING:
@@ -38,6 +39,22 @@ COLORS = [
 SNAP_STEPS = [(0.0, N_("Sem grade")), (1.0, "1 cm"), (5.0, "5 cm"), (10.0, "10 cm"), (25.0, "25 cm"),
               (50.0, "50 cm"), (100.0, "1 m")]
 
+# Fontes comuns no Windows que aparecem primeiro na lista (só as que existirem no computador).
+POPULAR_FONTS = ("Segoe UI", "Arial", "Calibri", "Verdana", "Tahoma", "Trebuchet MS", "Bahnschrift", "Times New Roman",
+                 "Georgia", "Cambria", "Courier New", "Consolas", "Comic Sans MS", "Segoe Print", "Segoe Script",
+                 "Ink Free", "Impact")
+
+
+@lru_cache(maxsize=1)
+def font_families() -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """(fontes comuns, todas as outras) instaladas que escrevem em português."""
+    fams = [f for f in QFontDatabase.families(QFontDatabase.WritingSystem.Latin)
+            if not f.startswith("@") and not QFontDatabase.isPrivateFamily(f)]
+    popular = tuple(f for f in POPULAR_FONTS if f in fams)
+    others = tuple(sorted((f for f in fams if f not in popular), key=str.casefold))
+    return popular, others
+
+
 TOOL_TIPS = {
     "select": ("select", N_("Selecionar e mover"),
                N_("Clique num desenho para escolher e arraste para mover. Arraste as bolinhas para mudar o tamanho. "
@@ -52,6 +69,19 @@ TOOL_TIPS = {
                   "meio das vigas. A tecla R deixa o bloco em pé ou deitado.")),
     "rect": ("rect", N_("Retângulo"),
              N_("Clique num canto e arraste até o canto oposto. Bom para lajes, aberturas e áreas.")),
+    "ellipse": ("ellipse", N_("Círculo"),
+                N_("Clique num canto e arraste até o canto oposto, como no Paint. Segure Shift para um círculo "
+                   "perfeito. Bom para pilares redondos, caixas d'água e poços.")),
+    "triangle": ("triangle", N_("Triângulo"),
+                 N_("Clique num canto e arraste até o canto oposto. Depois, arraste as bolinhas para mudar cada "
+                    "ponta.")),
+    "poly": ("poly", N_("Polígono"),
+             N_("Para terrenos e formas tortas: clique em cada canto, um depois do outro. Para terminar, clique no "
+                "primeiro ponto, dê dois cliques ou aperte Enter. O painel mostra a área e o perímetro.")),
+    "symbol": ("sym:door", N_("Símbolos"),
+               N_("Portas, janelas, escada, louças e o norte. Escolha o símbolo no botão da esquerda e clique na "
+                  "folha. Portas e janelas encaixam em cima de uma viga ou linha, abrem o vão na parede e seguem a "
+                  "direção dela. A tecla R gira (ou vira o lado da porta).")),
     "dim": ("dim", N_("Medida"),
             N_("Clique e arraste do começo ao fim do que quer medir: a medida é calculada sozinha. "
                "Depois, arraste a bolinha do meio para afastar a linha da medida.")),
@@ -82,12 +112,74 @@ class _Spin(QDoubleSpinBox):
             e.ignore()
 
 
+class _Int(QSpinBox):
+    """Campo de número inteiro que, como o _Spin, só reage à rodinha quando está em foco."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.setKeyboardTracking(False)
+        self.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.lineEdit().setTextMargins(7, 0, 0, 0)
+
+    def wheelEvent(self, e) -> None:  # noqa: N802
+        if self.hasFocus():
+            super().wheelEvent(e)
+        else:
+            e.ignore()
+
+
 class _Combo(QComboBox):
     def wheelEvent(self, e) -> None:  # noqa: N802
         if self.hasFocus():
             super().wheelEvent(e)
         else:
             e.ignore()
+
+
+class _FontCombo(_Combo):
+    """Escolha da fonte, cada nome escrito na própria fonte. A lista (centenas) só é montada ao abrir."""
+
+    def __init__(self, current: str, first_label: str) -> None:
+        super().__init__()
+        self.setMaxVisibleItems(16)
+        self._first = first_label
+        self._filled = False
+        self.addItem(first_label, "")
+        if current:
+            self._add(current)
+            self.setCurrentIndex(1)
+
+    def _add(self, family: str) -> None:
+        installed = any(family in group for group in font_families())
+        self.addItem(family if installed else _("{fonte} (não instalada)").format(fonte=family), family)
+        f = QFont(family)
+        f.setPointSizeF(10.5)
+        self.setItemData(self.count() - 1, f, Qt.ItemDataRole.FontRole)
+
+    def fill(self) -> None:
+        if self._filled:
+            return
+        self._filled = True
+        current = self.currentData() or ""
+        self.blockSignals(True)
+        self.clear()
+        self.addItem(self._first, "")
+        popular, others = font_families()
+        for group in (popular, others):
+            if group:
+                self.insertSeparator(self.count())
+            for fam in group:
+                self._add(fam)
+        if current and self.findData(current) < 0:
+            self._add(current)
+        self.setCurrentIndex(max(self.findData(current), 0))
+        self.blockSignals(False)
+
+    def showPopup(self) -> None:  # noqa: N802
+        self.fill()
+        super().showPopup()
 
 
 class PropertiesPanel(QScrollArea):
@@ -221,6 +313,23 @@ class PropertiesPanel(QScrollArea):
         sp.setValue(value)
         sp.valueChanged.connect(on_change)
         return sp
+
+    def _font(self, current: str, on_change: Callable[[str], None], first_label: str) -> _FontCombo:
+        combo = _FontCombo(current, first_label)
+        combo.currentIndexChanged.connect(lambda _i: on_change(combo.currentData() or ""))
+        return combo
+
+    def _info(self, label: str, text: str) -> None:
+        value = QLabel(text)
+        value.setObjectName("Value")
+        value.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        self._field(label, value)
+
+    def _note(self, text: str) -> None:
+        note = QLabel(text)
+        note.setObjectName("Faint")
+        note.setWordWrap(True)
+        self._wide(note)
 
     def _check(self, text: str, value: bool, on_change: Callable[[bool], None]) -> QCheckBox:
         cb = QCheckBox(text)
@@ -362,6 +471,8 @@ class PropertiesPanel(QScrollArea):
 
         self._section(_("Tamanhos"))
         self._field(_("Letras"), self._cm(doc.label_size, 2, 500, lambda v: self._set_doc("label_size", v), 1, 1))
+        self._field(_("Fonte"), self._font(doc.font, lambda v: self._set_doc("font", v),
+                                           _("Padrão ({fonte})").format(fonte=render.font_family())))
         self._field(_("Vigas novas"), self._cm(doc.beam_width, 1, 200, lambda v: self._set_doc("beam_width", v), 1, 1))
         size = QWidget()
         row = QHBoxLayout(size)
@@ -373,13 +484,11 @@ class PropertiesPanel(QScrollArea):
         row.addWidget(x)
         row.addWidget(self._cm(doc.pillar_h, 1, 500, lambda v: self._set_doc("pillar_h", v), 5, 0))
         self._field(_("Pilares novos"), size)
-        note = QLabel(_("As letras valem para os nomes das vigas e pilares e para as medidas."))
-        note.setObjectName("Faint")
-        note.setWordWrap(True)
-        self._wide(note)
+        self._note(_("O tamanho das letras vale para os nomes e as medidas. A fonte vale também para os textos "
+                     "que usam a mesma do desenho."))
 
         counts = [(doc.count("beam"), _("viga"), _("vigas")), (doc.count("pillar"), _("pilar"), _("pilares")),
-                  (doc.count("dim"), _("medida"), _("medidas"))]
+                  (doc.count("dim"), _("medida"), _("medidas")), (doc.count("symbol"), _("símbolo"), _("símbolos"))]
         parts = [f"{n} {one if n == 1 else many}" for n, one, many in counts if n]
         if parts:
             info = QLabel(" · ".join(parts))
@@ -400,10 +509,15 @@ class PropertiesPanel(QScrollArea):
 
     # ------------------------------------------------------------------------------ um elemento
     def _build_element(self, el: Element) -> None:
-        name = el.label if isinstance(el, Labeled) and el.label else _(el.title)
+        kind_name = _(el.name_key())
+        name = el.label if isinstance(el, Labeled) and el.label else kind_name
         icon_name = {"beam": "beam", "line": "line", "pillar": "pillar", "rect": "rect", "text": "text",
-                     "dim": "dim"}.get(el.kind, "select")
-        self._header(icon_name, _(el.title), name if isinstance(el, Labeled) else _(el.title))
+                     "dim": "dim", "ellipse": "ellipse", "poly": "poly"}.get(el.kind, "select")
+        if isinstance(el, Polygon) and el.closed and len(el.points) == 3:
+            icon_name = "triangle"
+        elif isinstance(el, Symbol):
+            icon_name = f"sym:{el.shape}"
+        self._header(icon_name, kind_name, name)
         if isinstance(el, Labeled):
             self._section(_("Nome"))
             self._wide(self._line_edit(el.label, lambda v: self._set(el, "label", v, "label"), _("Sem nome")))
@@ -425,6 +539,11 @@ class PropertiesPanel(QScrollArea):
                 self._field(_("Espessura"), self._cm(el.width, 0.1, 100, lambda v: self._set(el, "width", v, "width"),
                                                       0.5, 1))
                 self._wide(self._check(_("Tracejada"), el.dashed, lambda v: self._set(el, "dashed", v, "dashed")))
+            if isinstance(el, Line):
+                self._wide(self._check(_("Seta no começo"), el.arrow_start,
+                                       lambda v: self._set(el, "arrow_start", v, "arrow_start")))
+                self._wide(self._check(_("Seta no fim"), el.arrow_end,
+                                       lambda v: self._set(el, "arrow_end", v, "arrow_end")))
             self._wide(self._check(_("Escrever a medida ao lado"), el.show_length,
                                    lambda v: self._set(el, "show_length", v, "show_length")))
         elif isinstance(el, Pillar):
@@ -444,6 +563,39 @@ class PropertiesPanel(QScrollArea):
             self._wide(self._check(_("Preenchido"), el.fill, lambda v: self._set(el, "fill", v, "fill")))
             self._wide(self._check(_("Escrever as medidas"), el.show_dims,
                                    lambda v: self._set(el, "show_dims", v, "show_dims")))
+            self._area_rows(el, el.w * el.h)
+        elif isinstance(el, Ellipse):
+            self._section(_("Medidas"))
+            circle = el.is_circle()
+            self._wide(self._check(_("Círculo perfeito"), circle, lambda v: self._set_circle(el, v)))
+            if circle:
+                self._field(_("Diâmetro"), self._length(el.w, lambda v: self._set_diameter(el, v)))
+            else:
+                self._field(_("Largura"), self._length(el.w, lambda v: self._set(el, "w", v, "w")))
+                self._field(_("Altura"), self._length(el.h, lambda v: self._set(el, "h", v, "h")))
+            self._field(_("Espessura"), self._cm(el.width, 0.1, 100, lambda v: self._set(el, "width", v, "width"), 0.5, 1))
+            self._wide(self._check(_("Tracejado"), el.dashed, lambda v: self._set(el, "dashed", v, "dashed")))
+            self._wide(self._check(_("Preenchido"), el.fill, lambda v: self._set(el, "fill", v, "fill")))
+            self._wide(self._check(_("Escrever as medidas"), el.show_dims,
+                                   lambda v: self._set(el, "show_dims", v, "show_dims")))
+            self._area_rows(el, el.area())
+        elif isinstance(el, Polygon):
+            self._section(_("Medidas"))
+            self._info(_("Pontos"), str(len(el.points)))
+            self._info(_("Perímetro"), render.fmt_len(el.perimeter(), self.doc))
+            self._field(_("Espessura"), self._cm(el.width, 0.1, 100, lambda v: self._set(el, "width", v, "width"), 0.5, 1))
+            self._wide(self._check(_("Fechar a forma"), el.closed,
+                                   lambda v: self._set(el, "closed", v, "closed", rebuild=True)))
+            self._wide(self._check(_("Tracejado"), el.dashed, lambda v: self._set(el, "dashed", v, "dashed")))
+            if el.closed:
+                self._wide(self._check(_("Preenchido"), el.fill, lambda v: self._set(el, "fill", v, "fill")))
+            self._wide(self._check(_("Escrever a medida dos lados"), el.show_lengths,
+                                   lambda v: self._set(el, "show_lengths", v, "show_lengths")))
+            if el.closed:
+                self._area_rows(el, el.area())
+            self._note(_("Arraste as bolinhas para mudar cada ponta."))
+        elif isinstance(el, Symbol):
+            self._build_symbol(el)
         elif isinstance(el, Text):
             self._section(_("Texto"))
             edit = QPlainTextEdit(el.text)
@@ -451,7 +603,10 @@ class PropertiesPanel(QScrollArea):
             edit.textChanged.connect(lambda: self._set(el, "text", edit.toPlainText(), "text"))
             self._wide(edit)
             self._field(_("Letras"), self._cm(el.size, 2, 1000, lambda v: self._set(el, "size", v, "size"), 1, 1))
+            self._field(_("Fonte"), self._font(el.font, lambda v: self._set(el, "font", v, "font"),
+                                               _("A mesma do desenho")))
             self._wide(self._check(_("Negrito"), el.bold, lambda v: self._set(el, "bold", v, "bold")))
+            self._wide(self._check(_("Itálico"), el.italic, lambda v: self._set(el, "italic", v, "italic")))
             self._wide(self._check(_("Texto em pé"), bool(el.rot), lambda v: self._set(el, "rot", 90 if v else 0, "rot")))
         elif isinstance(el, Dimension):
             self._section(_("Medida"))
@@ -470,9 +625,64 @@ class PropertiesPanel(QScrollArea):
         self._wide(self._colors([el]))
         self._buttons([el])
 
-    def _set(self, el: Element, key: str, value, commit_key: str) -> None:
+    def _area_rows(self, el: Rect | Ellipse | Polygon, area: float) -> None:
+        self._wide(self._check(_("Escrever a área"), el.show_area,
+                               lambda v: self._set(el, "show_area", v, "show_area")))
+        self._info(_("Área"), geo.format_area(area, i18n.decimal_sep()))
+
+    def _build_symbol(self, el: Symbol) -> None:
+        self._section(_("Medidas"))
+        if el.in_wall():
+            self._field(_("Largura do vão"), self._length(el.w, lambda v: self._set(el, "w", v, "w")))
+            self._field(_("Parede"), self._cm(el.wall, 0, 200, lambda v: self._set(el, "wall", v, "wall"), 1, 1))
+            self._note(_("Com a espessura da parede, o símbolo abre o vão na viga ou linha de baixo. Com 0, não abre."))
+            if el.shape == "door":
+                self._wide(self._check(_("Dobradiça do outro lado"), el.flip_x,
+                                       lambda v: self._set(el, "flip_x", v, "flip_x")))
+            if el.shape in ("door", "door2"):
+                self._wide(self._check(_("Abre para o outro lado"), el.flip_y,
+                                       lambda v: self._set(el, "flip_y", v, "flip_y")))
+            if el.shape == "sliding":
+                self._wide(self._check(_("Espelhar"), el.flip_x, lambda v: self._set(el, "flip_x", v, "flip_x")))
+        elif el.shape == "north":
+            self._field(_("Tamanho"), self._cm(el.w, 10, 5000, lambda v: self._set_size(el, v), 5, 0))
+        elif el.shape == "stairs":
+            self._field(_("Comprimento"), self._length(el.w, lambda v: self._set(el, "w", v, "w", rebuild=True)))
+            self._field(_("Largura"), self._length(el.h, lambda v: self._set(el, "h", v, "h")))
+            steps = _Int()
+            steps.setRange(0, 200)
+            steps.setSpecialValueText(_("automático ({n})").format(n=el.step_count()))
+            steps.setValue(el.steps)
+            steps.valueChanged.connect(lambda v: self._set(el, "steps", v, "steps"))
+            self._field(_("Degraus"), steps)
+            self._wide(self._check(_("Inverter o sentido"), el.flip_x, lambda v: self._set(el, "flip_x", v, "flip_x")))
+        else:
+            self._field(_("Largura"), self._length(el.w, lambda v: self._set(el, "w", v, "w")))
+            self._field(_("Comprimento"), self._length(el.h, lambda v: self._set(el, "h", v, "h")))
+
+    def _set(self, el: Element, key: str, value, commit_key: str, rebuild: bool = False) -> None:
         setattr(el, key, value)
-        self._commit(f"{commit_key}:{el.id}")
+        self._commit(f"{commit_key}:{el.id}", rebuild)
+
+    def _set_circle(self, el: Ellipse, on: bool) -> None:
+        cx, cy = el.center()
+        if on:
+            el.h = el.w
+        else:
+            el.h = el.w * 0.6
+        el.y = cy - el.h / 2
+        el.x = cx - el.w / 2
+        self._commit(f"circle:{el.id}", rebuild=True)
+
+    def _set_diameter(self, el: Ellipse, d: float) -> None:
+        cx, cy = el.center()
+        el.w = el.h = d
+        el.x, el.y = cx - d / 2, cy - d / 2
+        self._commit(f"diameter:{el.id}")
+
+    def _set_size(self, el: Symbol, size: float) -> None:
+        el.w = el.h = size
+        self._commit(f"size:{el.id}")
 
     def _set_length(self, el: Segment, cm: float) -> None:
         el.set_length(cm)

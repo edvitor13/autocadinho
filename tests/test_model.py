@@ -18,7 +18,7 @@ def sample_doc() -> Document:
 
 
 def test_every_kind_is_registered():
-    assert set(KINDS) == {"beam", "line", "pillar", "rect", "text", "dim"}
+    assert set(KINDS) == {"beam", "line", "pillar", "rect", "text", "dim", "ellipse", "poly", "symbol"}
 
 
 def test_round_trip_keeps_everything():

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "autocadinho"
-version = "1.0.0"
+version = "1.1.0"
 description = "Desenhos simples de obra (vigas, pilares, medidas e textos) para salvar e imprimir"
 readme = "README.md"
 license = "MIT"

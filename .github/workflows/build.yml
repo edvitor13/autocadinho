@@ -141,7 +141,11 @@ jobs:
       - name: Montar o .zip portátil
         env:
           BASE: ${{ steps.meta.outputs.base }}
+          VER: ${{ steps.meta.outputs.ver }}
         run: |
+          # O .msi já foi montado com o marcador "msi"; o .zip leva o seu, para o atualizador baixar .zip.
+          python packaging/install_marker.py dist/Autocadinho zip --version $env:VER
+          if ($LASTEXITCODE -ne 0) { exit 1 }
           python packaging/make_zip.py dist/Autocadinho "$env:BASE.zip"
           if ($LASTEXITCODE -ne 0) { exit 1 }
           Get-Item "$env:BASE.msi", "$env:BASE.zip" | Format-Table Name, Length

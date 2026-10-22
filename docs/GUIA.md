@@ -10,6 +10,8 @@ O mesmo resumo está dentro do programa: aperte **F1** (ou abra o menu `⋯` ›
 - [3. A tela inicial](#3-a-tela-inicial)
 - [4. A tela de desenho](#4-a-tela-de-desenho)
 - [5. Desenhando](#5-desenhando)
+  - [Formas: retângulo, círculo, triângulo e polígono](#formas-retângulo-q-círculo-c-triângulo-e-polígono-g)
+  - [Símbolos: portas, janelas, escada, louças e o norte](#símbolos-portas-janelas-escada-louças-e-o-norte)
 - [6. Escolhendo, movendo e esticando](#6-escolhendo-movendo-e-esticando)
 - [7. O painel da direita](#7-o-painel-da-direita)
 - [8. Ajustes do desenho](#8-ajustes-do-desenho)
@@ -17,6 +19,7 @@ O mesmo resumo está dentro do programa: aperte **F1** (ou abra o menu `⋯` ›
 - [10. Imprimindo, PDF e imagem](#10-imprimindo-pdf-e-imagem)
 - [11. Mouse e teclado](#11-mouse-e-teclado)
 - [12. Dúvidas comuns](#12-dúvidas-comuns)
+- [13. Atualizações](#13-atualizações)
 
 ## 1. Instalar
 
@@ -31,8 +34,9 @@ abrir com dois cliques e aparecem no Explorador com um ícone de folha.
 Se aparecer **"O Windows protegeu o computador"**, clique em **Mais informações** e depois em
 **Executar assim mesmo**. O aviso aparece porque o programa não tem uma assinatura digital paga.
 
-**Atualizar:** baixe e instale o `.msi` da versão nova por cima. Ele troca a versão antiga no mesmo lugar;
-idioma, tema e desenhos recentes continuam como estavam.
+**Atualizar:** desde a versão 1.1, o próprio Autocadinho avisa quando sai uma versão nova e instala com um
+clique (veja [Atualizações](#13-atualizações)). Também dá para baixar e instalar o `.msi` da versão nova por
+cima: ele troca a versão antiga no mesmo lugar, e idioma, tema e desenhos recentes continuam como estavam.
 
 **Desinstalar:** Configurações do Windows › Aplicativos › Autocadinho › Desinstalar. Os seus desenhos
 não são apagados.
@@ -62,8 +66,10 @@ O botão **Início**, no alto da tela de desenho, volta para cá sem fechar o de
 
 - **Barra de cima:** Início, Novo, Abrir, Salvar, Desfazer e Refazer, o botão laranja **Imprimir**, o botão
   de tema (claro ou escuro) e o menu `⋯` (Salvar como, Salvar em PDF, Salvar como imagem, Idioma, Tema,
-  exemplo, Como usar e Sobre).
-- **Coluna da esquerda:** as ferramentas. A escolhida fica destacada em laranja.
+  exemplo, atualizações, Como usar e Sobre). Quando há versão nova, aparece também o botão
+  **Atualizar para…**.
+- **Coluna da esquerda:** as ferramentas. A escolhida fica destacada em laranja. **Formas** e **Símbolos**
+  (os botões com um triângulo no canto) abrem um menu com as opções; o botão passa a mostrar a última escolhida.
 - **Folha quadriculada:** a área de desenho. Cada quadradinho vale alguns centímetros da obra. A rodinha do
   mouse aproxima e afasta; os botões no canto de baixo também (o último mostra o desenho inteiro).
 - **Painel da direita:** as medidas e os ajustes do que está selecionado. Sem nada selecionado, mostra os
@@ -103,14 +109,54 @@ para trocar o número por um texto seu (por exemplo, *"6,20 m (vão livre)"*).
 ### Texto (T)
 
 **Clique** onde o texto vai ficar, escreva e aperte **Enter**. **Esc** cancela. Para mudar depois, dê um
-**duplo clique** no texto. No painel: tamanho das letras, negrito e **texto em pé**.
+**duplo clique** no texto. No painel: a **fonte** (qualquer uma instalada no computador), o tamanho das
+letras, **negrito**, **itálico** e **texto em pé**. Com a fonte *A mesma do desenho*, o texto acompanha a
+fonte escolhida nos [ajustes do desenho](#8-ajustes-do-desenho).
 
-### Linha (L) e Retângulo (Q)
+### Linha (L)
 
-- **Linha:** arraste do começo ao fim. Boa para escadas, aberturas, paredes finas e detalhes. Pode ser
-  **tracejada**.
+Arraste do começo ao fim. Boa para paredes finas, aberturas e detalhes. Pode ser **tracejada** e ter
+**seta** no começo, no fim ou nas duas pontas (para indicar uma entrada, um caimento ou o sentido de algo).
+
+### Formas: retângulo (Q), círculo (C), triângulo e polígono (G)
+
+O botão **Formas** abre o menu com as quatro formas.
+
 - **Retângulo:** clique num canto e arraste até o canto oposto (com **Shift**, um quadrado). Bom para lajes,
-  aberturas e áreas. Pode ser **tracejado**, **preenchido** e **escrever as medidas** dos lados.
+  aberturas e áreas.
+- **Círculo:** do mesmo jeito, de um canto ao outro; com **Shift**, um círculo perfeito (sem Shift, uma elipse).
+  Bom para pilares redondos, caixas d'água, poços e árvores. O círculo mostra o diâmetro (*Ø 1,10 m*).
+- **Triângulo:** arraste de um canto ao outro. Depois, com Selecionar, as bolinhas mudam cada ponta.
+- **Polígono:** para terrenos e formas tortas. Clique em cada canto, um depois do outro. Para terminar, clique
+  no primeiro ponto (a forma fecha), dê **dois cliques** ou aperte **Enter**. **Backspace** desfaz o último
+  ponto e **Esc** cancela. Com *Retas 90°* ligado, os lados ficam retos; segure **Shift** para lados inclinados.
+
+As formas podem ser **tracejadas** e **preenchidas**, escrever as **medidas dos lados** e mostrar a **área**
+em m², escrita no meio. O painel do polígono mostra também o número de pontos e o **perímetro**, e
+*Fechar a forma* liga ou desliga o último lado.
+
+### Símbolos: portas, janelas, escada, louças e o norte
+
+![Planta com portas, janelas e louças](img/planta.png)
+
+O botão **Símbolos** abre o menu: **porta**, **porta dupla**, **porta de correr**, **janela**, **escada**,
+**vaso sanitário**, **pia**, **chuveiro** e o **norte**. Escolha um e clique na folha.
+
+![Menu de símbolos](img/simbolos.png)
+
+- **Portas e janelas encaixam na parede.** Passe o mouse em cima de uma viga ou linha: o símbolo segue a
+  direção dela e fica na espessura certa. Ao clicar, ele **abre o vão** na parede (o desenho da parede some
+  embaixo da porta, como numa planta de verdade). Antes de clicar, a tecla **R** vira o lado para onde a
+  porta abre.
+- Os outros símbolos são colocados com um clique; a tecla **R** gira 90° antes de clicar.
+- No painel:
+  - **Portas e janelas:** a *Largura do vão*, a espessura da *Parede* (com 0, o símbolo não abre o vão),
+    *Dobradiça do outro lado* e *Abre para o outro lado*. A porta de correr tem *Espelhar*.
+  - **Escada:** o comprimento, a largura, o número de **degraus** (automático, um a cada 28 cm, ou o que
+    você digitar) e *Inverter o sentido* da seta que mostra para onde se sobe.
+  - **Louças:** largura e comprimento. **Norte:** o tamanho.
+- Os símbolos também podem ter um nome, escrito no painel (por exemplo, *P1* numa porta ou *J1* numa janela),
+  e têm cor, **R** para girar e as bolinhas para mudar o tamanho.
 
 ### Borracha (E) e Mover folha (H)
 
@@ -129,7 +175,8 @@ Com a ferramenta **Selecionar (S)**:
 - **Arraste** um desenho escolhido para mover. As **setas do teclado** movem de pouquinho em pouquinho
   (com Shift, dez vezes mais).
 - **Arraste as bolinhas** das pontas para esticar ou encurtar uma viga, linha ou medida, e as dos cantos para
-  mudar o tamanho de um retângulo. O tamanho de um pilar muda no painel.
+  mudar o tamanho de um retângulo ou círculo. No triângulo e no polígono, cada bolinha é um canto. Nas portas
+  e janelas, as bolinhas das pontas mudam a largura do vão. O tamanho de um pilar muda no painel.
 - **Arraste o nome** de uma viga ou de um pilar para tirá-lo de cima de outro desenho. No painel, *Voltar o
   nome para o lugar automático* desfaz isso.
 - **Duplo clique** muda o nome de uma viga ou pilar, ou o texto.
@@ -145,7 +192,10 @@ Ao escolher um desenho, o painel mostra tudo o que dá para ajustar nele:
 - **Nome:** o nome da viga ou do pilar, *Mostrar o nome* e *Nome em pé* (escrito de baixo para cima).
 - **Medidas:** digite o valor exato e aperte Enter. Numa viga, o **Comprimento** muda a ponta final e mantém
   o começo e a direção; a **Largura** é a espessura desenhada. Num pilar ou retângulo, largura e altura.
+  No círculo, *Círculo perfeito* e o **Diâmetro** (ou largura e altura, numa elipse).
   *Escrever a medida ao lado* mostra o comprimento junto da viga ou linha.
+- **Área:** retângulos, círculos e polígonos mostram a área no painel; *Escrever a área* põe o valor no desenho.
+- **Texto:** a fonte, o tamanho, negrito, itálico e texto em pé.
 - **Cor:** preto (automática), vermelho, azul, verde, laranja, marrom ou cinza. O botão **+** abre *Outra cor…*
   com qualquer cor. A cor *automática* sai preta no papel e clara no tema escuro.
 - **Girar**, **Duplicar** e **Apagar**.
@@ -161,6 +211,9 @@ Sem nada selecionado (clique num lugar vazio da folha), o painel mostra os ajust
   ganha o nome do arquivo.
 - **Medidas em:** metros (*6,20 m*) ou centímetros (*620 cm*).
 - **Letras:** a altura das letras dos nomes e das medidas, em centímetros da obra.
+- **Fonte:** a fonte dos nomes, das medidas e dos textos que usam *A mesma do desenho*. A lista mostra cada
+  fonte escrita nela mesma. Se o desenho for aberto num computador sem a fonte, aparece *(não instalada)* e
+  o programa usa uma parecida.
 - **Vigas novas** e **Pilares novos:** a largura das próximas vigas e o tamanho dos próximos pilares.
 - **Encaixe:** de quantos em quantos centímetros os desenhos encaixam na grade (ou *Sem grade*).
 - **Nomes automáticos:** a palavra usada nos nomes das vigas e dos pilares novos. Troque *VIGA* por *PAREDE*
@@ -203,11 +256,12 @@ medidas.
 
 | Tecla ou gesto | O que faz |
 |---|---|
-| `S` `V` `P` `L` `Q` `M` `T` `E` `H` | Ferramentas: Selecionar, Viga, Pilar, Linha, Retângulo, Medida, Texto, Borracha e Mover a folha |
+| `S` `V` `P` `L` `Q` `C` `G` `M` `T` `E` `H` | Ferramentas: Selecionar, Viga, Pilar, Linha, Retângulo, Círculo, Polígono, Medida, Texto, Borracha e Mover a folha |
 | `Esc` | Cancela o que está fazendo e volta para Selecionar |
-| `Shift` (desenhando) | Viga ou linha inclinada; no retângulo, um quadrado |
+| `Shift` (desenhando) | Viga, linha ou lado do polígono inclinado; no retângulo, um quadrado; no círculo, um círculo perfeito |
 | `Alt` (desenhando ou movendo) | Solta o encaixe |
-| `R` | Gira o que está selecionado (ou o próximo pilar) |
+| `R` | Gira o que está selecionado (ou o próximo pilar ou símbolo; numa porta em cima da parede, vira o lado) |
+| `Enter` · `Backspace` | No polígono: termina a forma e desfaz o último ponto |
 | Setas | Movem o que está selecionado (com `Shift`, dez vezes mais) |
 | `Delete` | Apaga o que está selecionado |
 | `Ctrl+Z` · `Ctrl+Y` | Desfaz e refaz |
@@ -242,3 +296,30 @@ arquivo salvo. Para alguém continuar o desenho em outro computador com o Autoca
 **Apaguei sem querer.** **Ctrl+Z** desfaz, mesmo depois de vários passos.
 
 **O computador desligou e eu não tinha salvado.** Abra o Autocadinho de novo e clique em **Recuperar**.
+
+**A porta não abriu o vão na parede.** Ela precisa ser colocada em cima de uma viga ou linha (o símbolo gira
+sozinho quando está em cima dela). Se já foi colocada fora, arraste para cima da parede e confira a
+espessura da *Parede* no painel: com 0, o vão não abre.
+
+**Como escrevo a área de um cômodo?** Desenhe um retângulo (ou um polígono, se o cômodo for torto) por cima do
+cômodo e marque *Escrever a área*. Para o contorno não se confundir com as paredes, deixe-o tracejado ou
+com uma cor clara.
+
+## 13. Atualizações
+
+![Janela de atualização](img/atualizar.png)
+
+Ao abrir, no máximo uma vez por dia, o Autocadinho pergunta ao GitHub qual é a última versão. **Nada é
+enviado**: é a mesma consulta que o navegador faz ao abrir a página de versões.
+
+- Quando há versão nova, aparece o botão **Atualizar para…** no alto e um aviso na tela inicial.
+- Um clique mostra as **novidades**. **Atualizar agora** baixa o instalador, **confere** o arquivo com a soma
+  SHA-256 publicada junto (se não conferir, nada é instalado) e pergunta se pode fechar. Se houver desenho sem
+  salvar, o programa pergunta antes, como sempre. Depois ele instala e **abre de novo sozinho**.
+- **Pular esta versão** esconde o aviso até sair a próxima. **Agora não** só fecha a janela.
+- No menu `⋯`: **Procurar atualizações…** consulta na hora, e **Procurar atualizações sozinho** liga ou desliga
+  a busca automática.
+
+Quem instalou pelo `.msi` recebe o `.msi` novo; quem usa o `.zip` recebe o `.zip` novo, na mesma pasta.
+A versão 1.0 ainda não tinha esse recurso: para sair dela, baixe a versão nova uma vez pela página e
+instale por cima.

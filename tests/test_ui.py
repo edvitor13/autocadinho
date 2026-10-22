@@ -429,3 +429,77 @@ def test_tool_buttons_fill_the_rail(win):
     rail = win._tool_buttons["select"].parentWidget()
     m = rail.layout().contentsMargins()
     assert widths["beam"] == rail.width() - m.left() - m.right()
+
+
+# ------------------------------------------------------------------------------------- atualizações
+def fake_release(tag="v9.0.0"):
+    from autocadinho import updater
+    return updater.Release(tag=tag, version=updater.parse_version(tag), name=tag, body="**Novidades**", url="u",
+                           published="2026-10-22", assets={})
+
+
+def test_update_found_shows_button_and_home_notice(win, monkeypatch):
+    win._update_found((fake_release(), "", False))
+    assert not win.update_btn.isHidden() and "9.0.0" in win.update_btn.text()
+    assert win.home._update_version == "9.0.0"
+    assert prefs.settings().value("update_seen") == "v9.0.0"
+    win.set_language("en")  # a interface é remontada e o aviso continua
+    assert not win.update_btn.isHidden() and win.update_btn.text() == "Update to 9.0.0"
+    win.set_language("pt_BR")
+    prefs.settings().setValue("update_skip", "v9.0.0")  # "Pular esta versão"
+    win._show_update_badges()
+    assert win.update_btn.isHidden() and win.home._update_version == ""
+
+
+def test_manual_check_answers(win, monkeypatch):
+    seen = answer(monkeypatch, "OK")
+    win._update_found((fake_release("v0.0.1"), "", True))
+    win._update_found((None, "offline", True))
+    assert "versão mais recente" in seen[0] and "internet" in seen[1]
+    assert win.update_btn.isHidden()
+    opened = []
+    from autocadinho.ui import update_dialog
+    monkeypatch.setattr(update_dialog.UpdateDialog, "exec", lambda dlg: opened.append(dlg.release.tag))
+    win._update_found((fake_release(), "", True))
+    assert opened == ["v9.0.0"]
+
+
+def test_update_dialog_from_source_cannot_install(win):
+    from autocadinho.ui.update_dialog import UpdateDialog
+    dlg = UpdateDialog(win, fake_release())
+    assert not dlg.go.isEnabled() and "código-fonte" in dlg.status.text()
+    dlg.deleteLater()
+
+
+def test_auto_check_runs_at_most_once_a_day(win, monkeypatch):
+    import time
+    from autocadinho import updater
+    calls = []
+    monkeypatch.setattr(updater, "auto_check_disabled", lambda: False)
+    monkeypatch.setattr(win, "check_updates", lambda manual=False: calls.append(manual))
+    prefs.settings().setValue("update_last_check", time.time() - 3600)
+    win._auto_check_update()
+    assert calls == []
+    prefs.settings().setValue("update_last_check", time.time() - updater.CHECK_EVERY_S - 1)
+    win._auto_check_update()
+    assert calls == [False]
+    prefs.settings().setValue("auto_update", False)
+    win._auto_check_update()
+    assert calls == [False]
+
+
+def test_version_seen_before_shows_without_asking_again(win, monkeypatch):
+    prefs.settings().setValue("update_seen", "v99.0.0")  # visto numa consulta de outro dia
+    win._show_update_badges()
+    assert not win.update_btn.isHidden() and "99.0.0" in win.update_btn.text()
+    asked = []
+    monkeypatch.setattr(win, "check_updates", lambda manual=False: asked.append(manual))
+    win.update_btn.click()  # só agora consulta, para ter os arquivos da versão
+    assert asked == [True]
+    prefs.settings().setValue("auto_update", False)  # busca desligada: sem aviso
+    win._show_update_badges()
+    assert win.update_btn.isHidden()
+    prefs.settings().setValue("auto_update", True)
+    prefs.settings().setValue("update_seen", "v0.0.1")  # versão velha (já atualizou)
+    win._show_update_badges()
+    assert win.update_btn.isHidden()

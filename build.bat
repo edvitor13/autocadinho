@@ -53,6 +53,8 @@ set "MSI=%BASE%.msi"
 :zip
 echo.
 echo  Gerando o .zip portátil...
+".venv\Scripts\python.exe" packaging\install_marker.py dist\Autocadinho zip --version %VER%
+if errorlevel 1 goto fail
 ".venv\Scripts\python.exe" packaging\make_zip.py dist\Autocadinho "%BASE%.zip"
 if errorlevel 1 goto fail
 

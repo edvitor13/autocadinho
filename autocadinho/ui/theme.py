@@ -150,7 +150,8 @@ def stylesheet(t: Palette | None = None) -> str:
 QMainWindow, QDialog {{ background: {t.bg}; }}
 QToolTip {{ background: {t.panel}; color: {t.text}; border: 1px solid {t.border_hi}; padding: 6px 9px; border-radius: 6px; }}
 QWidget#TopBar {{ background: {t.panel}; border-bottom: 1px solid {t.border}; }}
-QWidget#ToolRail {{ background: {t.panel}; border-right: 1px solid {t.border}; }}
+QScrollArea#ToolRailScroll {{ background: {t.panel}; border: none; border-right: 1px solid {t.border}; }}
+QWidget#ToolRail {{ background: {t.panel}; }}
 QWidget#Side {{ background: {t.panel}; border-left: 1px solid {t.border}; }}
 QWidget#Home {{ background: {t.bg}; }}
 QFrame#Card {{ background: {t.panel}; border: 1px solid {t.border}; border-radius: 14px; }}
@@ -166,6 +167,7 @@ QLabel#Kicker {{ font-family: "{tf}"; font-size: 8.5pt; font-weight: 700; color:
 QLabel#Muted {{ color: {t.muted}; }}
 QLabel#Faint {{ color: {t.faint}; font-size: 9pt; }}
 QLabel#FieldLabel {{ color: {t.muted}; }}
+QLabel#Value {{ font-weight: 600; }}
 QLabel#TipTitle {{ font-weight: 600; color: {t.text}; }}
 QLabel#TipText {{ color: {t.text}; }}
 QLabel#Coords {{ color: {t.muted}; font-family: "Cascadia Mono", "Consolas", monospace; font-size: 9pt; }}
@@ -188,6 +190,7 @@ QPushButton:pressed, QToolButton:pressed {{ background: {t.border}; }}
 QPushButton:disabled, QToolButton:disabled {{ color: {t.faint}; background: {t.panel2}; border-color: {t.border}; }}
 QPushButton#Primary, QToolButton#Primary {{ background: {t.accent}; color: {t.on_accent}; border: 1px solid {t.accent}; font-weight: 600; }}
 QPushButton#Primary:hover, QToolButton#Primary:hover {{ background: {t.accent_hi}; border-color: {t.accent_hi}; }}
+QPushButton#Primary:disabled, QToolButton#Primary:disabled {{ background: {t.panel3}; border-color: {t.border}; color: {t.faint}; }}
 QPushButton#Danger {{ color: {t.danger}; }}
 QPushButton#Danger:hover {{ background: {t.danger_soft}; border-color: {t.danger}; }}
 QToolButton#Flat, QPushButton#Flat {{ background: transparent; border: 1px solid transparent; padding: 6px 9px; }}
@@ -200,6 +203,18 @@ QToolButton#Tool {{
 }}
 QToolButton#Tool:hover {{ background: {t.panel3}; color: {t.text}; }}
 QToolButton#Tool:checked {{ background: {t.accent_soft}; color: {t.accent}; font-weight: 600; }}
+QToolButton#Update {{
+    background: {t.accent_soft}; border: 1px solid transparent; border-radius: 10px; padding: 7px 12px;
+    color: {t.accent}; font-weight: 600;
+}}
+QToolButton#Update:hover {{ border-color: {t.accent}; }}
+QFrame#Flyout {{ background: {t.panel}; border: 1px solid {t.border_hi}; border-radius: 14px; }}
+QToolButton#Tile {{
+    background: transparent; border: none; border-radius: 10px; padding: 8px 2px 6px 2px;
+    color: {t.text}; font-size: 8.5pt;
+}}
+QToolButton#Tile:hover {{ background: {t.panel3}; }}
+QToolButton#Tile:checked {{ background: {t.accent_soft}; color: {t.accent}; font-weight: 600; }}
 QToolButton#Toggle {{ background: transparent; border: 1px solid transparent; border-radius: 7px; padding: 3px 8px; color: {t.muted}; font-size: 9pt; }}
 QToolButton#Toggle:hover {{ background: {t.panel3}; }}
 QToolButton#Toggle:checked {{ color: {t.accent}; background: {t.accent_soft}; }}

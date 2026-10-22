@@ -1,4 +1,4 @@
-"""Modelo do desenho, sem Qt: os elementos (viga, linha, pilar, retângulo, texto, medida) e o documento.
+"""Modelo do desenho, sem Qt: os elementos (viga, linha, pilar, formas, texto, medida, símbolos) e o documento.
 
 Unidade: centímetros, com y para baixo. Cor vazia ("") quer dizer "tinta": preto no papel e claro no
 tema escuro. O documento vira um dicionário JSON (`to_dict`/`from_dict`); o formato de arquivo está
@@ -43,6 +43,8 @@ def _coerce(name: str, default: Any, value: Any) -> Any:
         except (TypeError, ValueError):
             return None
         return v if math.isfinite(v) else None
+    if isinstance(default, list):
+        return _points(value)
     try:
         if isinstance(default, bool):
             return bool(value)
@@ -56,6 +58,19 @@ def _coerce(name: str, default: Any, value: Any) -> Any:
     except (TypeError, ValueError):
         return default
     return value
+
+
+def _points(value: Any) -> list[list[float]]:
+    """Lista de pontos [[x, y], ...] lida do arquivo; pares estranhos ficam de fora."""
+    out = []
+    for item in value if isinstance(value, list) else []:
+        try:
+            x, y = float(item[0]), float(item[1])
+        except (TypeError, ValueError, IndexError, KeyError):
+            continue
+        if math.isfinite(x) and math.isfinite(y):
+            out.append([x, y])
+    return out
 
 
 def _default(f) -> Any:
@@ -89,9 +104,19 @@ class Element:
             if f.name in data:
                 kwargs[f.name] = _coerce(f.name, _default(f), data[f.name])
         el = cls(**kwargs)
+        if not el.sane():
+            raise ValueError(f"elemento sem conserto: {data.get('kind')!r}")
         if not el.id:
             el.id = new_id()
         return el
+
+    def sane(self) -> bool:
+        """Ajusta valores impossíveis vindos de um arquivo; False = o elemento não tem como ser usado."""
+        return True
+
+    def name_key(self) -> str:
+        """Nome do tipo para a interface (traduzir com _() ao mostrar)."""
+        return self.title
 
     def clone(self, new: bool = True) -> "Element":
         el = Element.from_dict(self.to_dict())
@@ -206,6 +231,8 @@ class Line(Segment):
     kind: ClassVar[str] = "line"
     title: ClassVar[str] = N_("Linha")
     dashed: bool = False
+    arrow_start: bool = False  # seta na ponta p1
+    arrow_end: bool = False  # seta na ponta p2
 
 
 @_register
@@ -254,6 +281,7 @@ class Rect(Element):
     dashed: bool = False
     fill: bool = False
     show_dims: bool = False
+    show_area: bool = False
 
     def corners(self) -> list[Point]:
         return [(self.x, self.y), (self.x + self.w, self.y), (self.x + self.w, self.y + self.h),
@@ -291,6 +319,8 @@ class Text(Element):
     size: float = 25.0
     bold: bool = False
     rot: int = 0  # 0 = deitado, 90 = em pé (lido de baixo para cima)
+    font: str = ""  # família da fonte; vazio = a fonte do desenho
+    italic: bool = False
 
     def center(self) -> Point:
         return (self.x, self.y)
@@ -348,6 +378,241 @@ class Dimension(Element):
         self.x2, self.y2 = geo.rotate90(self.p2, center)
 
 
+@_register
+@dataclass
+class Ellipse(Element):
+    """Círculo ou elipse dentro do retângulo x, y, w, h (desenhado de um canto ao outro, como no Paint)."""
+
+    kind: ClassVar[str] = "ellipse"
+    title: ClassVar[str] = N_("Círculo")
+    x: float = 0.0
+    y: float = 0.0
+    w: float = 100.0
+    h: float = 100.0
+    width: float = 3.0
+    dashed: bool = False
+    fill: bool = False
+    show_dims: bool = False
+    show_area: bool = False
+
+    def is_circle(self) -> bool:
+        return abs(self.w - self.h) < 0.05
+
+    def name_key(self) -> str:
+        return self.title if self.is_circle() else N_("Elipse")
+
+    def area(self) -> float:
+        return math.pi * self.w * self.h / 4
+
+    def center(self) -> Point:
+        return (self.x + self.w / 2, self.y + self.h / 2)
+
+    def move(self, dx: float, dy: float) -> None:
+        self.x += dx
+        self.y += dy
+
+    def rotate90(self, center: Point) -> None:
+        a = geo.rotate90((self.x, self.y), center)
+        b = geo.rotate90((self.x + self.w, self.y + self.h), center)
+        self.x, self.y, self.w, self.h = geo.rect_norm(a[0], a[1], b[0], b[1])
+
+    def outline(self) -> list[Point]:
+        cx, cy = self.center()
+        return geo.ellipse_points(cx, cy, self.w / 2, self.h / 2)
+
+    def key_points(self) -> list[Point]:
+        cx, cy = self.center()
+        return [(cx, cy), (cx, self.y), (self.x + self.w, cy), (cx, self.y + self.h), (self.x, cy)]
+
+    def snap_segments(self) -> list[Seg]:
+        pts = self.outline()
+        return [(pts[i], pts[(i + 1) % len(pts)]) for i in range(len(pts))]
+
+
+@_register
+@dataclass
+class Polygon(Element):
+    """Forma de vários lados retos, ponto a ponto (o triângulo é um polígono de 3 pontos)."""
+
+    kind: ClassVar[str] = "poly"
+    title: ClassVar[str] = N_("Polígono")
+    points: list[list[float]] = field(default_factory=list)
+    closed: bool = True  # False = linha com vários pontos, sem fechar
+    width: float = 3.0
+    dashed: bool = False
+    fill: bool = False
+    show_lengths: bool = False
+    show_area: bool = False
+
+    def sane(self) -> bool:
+        return len(self.points) >= 2
+
+    def pts(self) -> list[Point]:
+        return [(p[0], p[1]) for p in self.points]
+
+    def name_key(self) -> str:
+        if not self.closed:
+            return N_("Linha com pontos")
+        return N_("Triângulo") if len(self.points) == 3 else self.title
+
+    def sides(self) -> list[Seg]:
+        pts = self.pts()
+        n = len(pts)
+        if n < 2:
+            return []
+        out = [(pts[i], pts[i + 1]) for i in range(n - 1)]
+        if self.closed and n > 2:
+            out.append((pts[-1], pts[0]))
+        return out
+
+    def area(self) -> float:
+        return abs(geo.polygon_area(self.pts())) if self.closed and len(self.points) > 2 else 0.0
+
+    def perimeter(self) -> float:
+        return sum(geo.dist(a, b) for a, b in self.sides())
+
+    def center(self) -> Point:
+        pts = self.pts()
+        if not pts:
+            return (0.0, 0.0)
+        xs, ys = [p[0] for p in pts], [p[1] for p in pts]
+        return ((min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2)
+
+    def move(self, dx: float, dy: float) -> None:
+        self.points = [[x + dx, y + dy] for x, y in self.points]
+
+    def rotate90(self, center: Point) -> None:
+        self.points = [list(geo.rotate90((x, y), center)) for x, y in self.points]
+
+    def key_points(self) -> list[Point]:
+        return self.pts() + [geo.mid(a, b) for a, b in self.sides()]
+
+    def snap_segments(self) -> list[Seg]:
+        return [s for s in self.sides() if geo.dist(*s) > 1e-6]
+
+
+# Símbolos prontos: (nome na interface, largura e comprimento padrão em cm).
+SYMBOLS: dict[str, tuple[str, float, float]] = {
+    "door": (N_("Porta"), 80.0, 80.0),
+    "door2": (N_("Porta dupla"), 160.0, 80.0),
+    "sliding": (N_("Porta de correr"), 120.0, 15.0),
+    "window": (N_("Janela"), 120.0, 15.0),
+    "stairs": (N_("Escada"), 300.0, 100.0),
+    "toilet": (N_("Vaso sanitário"), 40.0, 65.0),
+    "sink": (N_("Pia"), 50.0, 40.0),
+    "shower": (N_("Chuveiro"), 80.0, 80.0),
+    "north": (N_("Norte"), 80.0, 80.0),
+}
+WALL_SYMBOLS = ("door", "door2", "sliding", "window")  # ficam na parede e podem abrir um vão nela
+STEP_CM = 28.0  # piso de um degrau, para a escada com degraus automáticos
+
+
+@_register
+@dataclass
+class Symbol(Element, Labeled):
+    """Símbolo pronto (porta, janela, escada...) desenhado num sistema próprio, girado `angle` graus.
+
+    O ponto x, y é o meio do vão na parede (portas e janelas) ou o centro (os outros). No sistema do
+    símbolo, x corre ao longo da parede (ou do comprimento) e y, para dentro do cômodo.
+    """
+
+    kind: ClassVar[str] = "symbol"
+    title: ClassVar[str] = N_("Símbolo")
+    shape: str = "door"
+    x: float = 0.0
+    y: float = 0.0
+    w: float = 80.0
+    h: float = 80.0
+    angle: float = 0.0
+    flip_x: bool = False  # espelhado ao longo da parede (dobradiça do outro lado, escada no outro sentido)
+    flip_y: bool = False  # virado para o outro lado da parede (a porta abre para fora)
+    wall: float = 0.0  # espessura da parede aberta embaixo de portas e janelas (0 = não abre)
+    steps: int = 0  # degraus da escada (0 = automático, um a cada 28 cm)
+
+    def sane(self) -> bool:
+        # Símbolo de uma versão mais nova: ignorado, como um tipo desconhecido.
+        if self.shape not in SYMBOLS:
+            return False
+        self.w, self.h = max(self.w, 1.0), max(self.h, 1.0)
+        self.wall, self.steps = max(self.wall, 0.0), max(self.steps, 0)
+        return True
+
+    def name_key(self) -> str:
+        return SYMBOLS.get(self.shape, (self.title,))[0]
+
+    def in_wall(self) -> bool:
+        return self.shape in WALL_SYMBOLS
+
+    def thickness(self) -> float:
+        """Espessura usada para desenhar janelas e portas de correr (a da parede ou uma padrão)."""
+        return self.wall if self.wall > 0 else min(max(self.w * 0.12, 8.0), 30.0)
+
+    def step_count(self) -> int:
+        return self.steps if self.steps > 0 else max(2, round(self.w / STEP_CM))
+
+    def local_bounds(self) -> tuple[float, float, float, float]:
+        """Retângulo (x0, y0, x1, y1) que o símbolo ocupa no próprio sistema."""
+        hw = self.w / 2
+        if self.shape == "door":
+            return (-hw, -self.wall / 2, hw, self.w)
+        if self.shape == "door2":
+            return (-hw, -self.wall / 2, hw, hw)
+        if self.shape in ("sliding", "window"):
+            t = self.thickness() / 2
+            return (-hw, -t, hw, t)
+        hh = self.h / 2
+        if self.shape == "north":
+            return (-hw, -hh - min(self.w, self.h) * 0.42, hw, hh)
+        return (-hw, -hh, hw, hh)
+
+    def to_world(self, lx: float, ly: float) -> Point:
+        if self.flip_x:
+            lx = -lx
+        if self.flip_y:
+            ly = -ly
+        a = math.radians(self.angle)
+        c, s = math.cos(a), math.sin(a)
+        return (self.x + lx * c - ly * s, self.y + lx * s + ly * c)
+
+    def to_local(self, pt: Point) -> Point:
+        a = math.radians(self.angle)
+        c, s = math.cos(a), math.sin(a)
+        dx, dy = pt[0] - self.x, pt[1] - self.y
+        lx, ly = dx * c + dy * s, -dx * s + dy * c
+        return (-lx if self.flip_x else lx, -ly if self.flip_y else ly)
+
+    def corners(self) -> list[Point]:
+        x0, y0, x1, y1 = self.local_bounds()
+        return [self.to_world(x0, y0), self.to_world(x1, y0), self.to_world(x1, y1), self.to_world(x0, y1)]
+
+    def label_anchor(self) -> Point:
+        return self.center()
+
+    def center(self) -> Point:
+        x0, y0, x1, y1 = self.local_bounds()
+        return self.to_world((x0 + x1) / 2, (y0 + y1) / 2)
+
+    def move(self, dx: float, dy: float) -> None:
+        self.x += dx
+        self.y += dy
+
+    def rotate90(self, center: Point) -> None:
+        self.x, self.y = geo.rotate90((self.x, self.y), center)
+        self.angle = (self.angle + 90) % 360
+        self._rotate_label()
+
+    def key_points(self) -> list[Point]:
+        if self.in_wall():
+            return [(self.x, self.y), self.to_world(-self.w / 2, 0), self.to_world(self.w / 2, 0)]
+        return self.corners() + [self.center()]
+
+    def snap_segments(self) -> list[Seg]:
+        if self.in_wall():
+            return []
+        c = self.corners()
+        return [(c[i], c[(i + 1) % 4]) for i in range(4)]
+
+
 def beam_prefix() -> str:
     """Prefixo padrão do nome automático das vigas, no idioma do app."""
     return _("VIGA")
@@ -369,14 +634,16 @@ class Document:
     pillar_w: float = 40.0  # tamanho dos pilares novos (cm)
     pillar_h: float = 20.0
     snap_step: float = 10.0  # passo da grade de encaixe (cm)
+    font: str = ""  # fonte dos nomes, das medidas e dos textos sem fonte própria; vazio = a padrão
     # Nomes automáticos: "VIGA" dá VIGA 1, VIGA 2…; "P" dá P1, P2…; vazio = sem nome automático.
     beam_prefix: str = field(default_factory=beam_prefix)
     pillar_prefix: str = field(default_factory=pillar_prefix)
     elements: list[Element] = field(default_factory=list)
 
     SETTINGS: ClassVar[tuple[str, ...]] = ("unit", "label_size", "beam_width", "pillar_w", "pillar_h", "snap_step",
-                                           "beam_prefix", "pillar_prefix")
+                                           "beam_prefix", "pillar_prefix", "font")
     PREFIX_MAX = 24
+    FONT_MAX = 80
     LIMITS: ClassVar[dict[str, tuple[float, float]]] = {
         "label_size": (2.0, 500.0), "beam_width": (1.0, 200.0), "pillar_w": (1.0, 500.0),
         "pillar_h": (1.0, 500.0), "snap_step": (0.0, 500.0),
@@ -408,6 +675,7 @@ class Document:
             setattr(doc, k, min(max(getattr(doc, k), lo), hi))
         doc.beam_prefix = doc.beam_prefix.strip()[:cls.PREFIX_MAX]
         doc.pillar_prefix = doc.pillar_prefix.strip()[:cls.PREFIX_MAX]
+        doc.font = doc.font.strip()[:cls.FONT_MAX]
         seen: set[str] = set()
         for item in data.get("elements") or []:
             if not isinstance(item, dict):

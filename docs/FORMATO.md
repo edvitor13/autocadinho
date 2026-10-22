@@ -21,7 +21,8 @@ Uma viga de 5 m com um pilar na ponta, a medida e um texto (a miniatura foi cort
   "pillar_h": 20.0,
   "snap_step": 10.0,
   "beam_prefix": "VIGA",
-  "pillar_prefix": "P"
+  "pillar_prefix": "P",
+  "font": ""
  },
  "elements": [
   {"kind": "beam", "id": "dfd55aefdfe1", "color": "", "x1": 0, "y1": 0, "x2": 500, "y2": 0,
@@ -32,9 +33,9 @@ Uma viga de 5 m com um pilar na ponta, a medida e um texto (a miniatura foi cort
   {"kind": "dim", "id": "5c518439869b", "color": "", "x1": 0, "y1": 0, "x2": 500, "y2": 0,
    "offset": -60, "text": ""},
   {"kind": "text", "id": "59c27a8da88b", "color": "", "x": 250, "y": 200, "text": "Garagem",
-   "size": 25.0, "bold": true, "rot": 0}
+   "size": 25.0, "bold": true, "rot": 0, "font": "", "italic": false}
  ],
- "version": "1.0.0",
+ "version": "1.1.0",
  "thumbnail": "iVBORw0KGgoAAAANSUhEUgAAAeAAAAFACAYAAABk…"
 }
 ```
@@ -72,6 +73,7 @@ Uma viga de 5 m com um pilar na ponta, a medida e um texto (a miniatura foi cort
 | `snap_step` | `10.0` | Passo da grade de encaixe, em cm (0 = sem grade; até 500). |
 | `beam_prefix` | `"VIGA"` | Palavra do nome automático das vigas novas (VIGA 1, VIGA 2…). Vazio = sem nome. Até 24 caracteres. |
 | `pillar_prefix` | `"P"` | O mesmo para os pilares (P1, P2…). Prefixo de uma letra fica colado ao número. |
+| `font` | `""` | Desde a 1.1. Família da fonte dos nomes, das medidas e dos textos sem fonte própria (`"Georgia"`). Vazio = a fonte padrão do app (Segoe UI no Windows). Até 80 caracteres. |
 
 O padrão dos prefixos segue o idioma do app quando o desenho é criado (`BEAM`/`C` em inglês). Um desenho salvo
 guarda os seus e não muda ao trocar o idioma.
@@ -88,6 +90,7 @@ Todo elemento tem `kind`, `id` e `color`. Os campos de cada tipo:
 | `width` | Espessura desenhada, em cm (viga: 15 por padrão; linha: 3). |
 | `show_length` | `true` escreve o comprimento ao lado. |
 | `dashed` | Só na linha: tracejada. |
+| `arrow_start`, `arrow_end` | Só na linha, desde a 1.1: seta na ponta 1 (`x1`, `y1`) e na ponta 2. |
 
 A viga também tem os campos de **nome** (abaixo).
 
@@ -100,7 +103,7 @@ A viga também tem os campos de **nome** (abaixo).
 
 Também tem os campos de **nome**.
 
-### Campos de nome (viga e pilar)
+### Campos de nome (viga, pilar e símbolo)
 
 | Campo | Descrição |
 |---|---|
@@ -118,6 +121,48 @@ Também tem os campos de **nome**.
 | `width` | Espessura da borda. |
 | `dashed`, `fill` | Borda tracejada; preenchido com a própria cor, bem clara (16% de opacidade). |
 | `show_dims` | Escreve as medidas dos lados. |
+| `show_area` | Desde a 1.1: escreve a área, sempre em m², no centro. |
+
+### `ellipse` (círculo ou elipse, desde a 1.1)
+
+Desenhada dentro de um retângulo, como no Paint. Com `w` igual a `h`, é um círculo.
+
+| Campo | Descrição |
+|---|---|
+| `x`, `y` | Canto de cima à esquerda do retângulo em volta. |
+| `w`, `h` | Largura e altura, em cm (o diâmetro, num círculo). |
+| `width`, `dashed`, `fill` | Como no retângulo. |
+| `show_dims` | Escreve o diâmetro (`Ø 1,20 m`) num círculo; largura e altura numa elipse. |
+| `show_area` | Escreve a área no centro. |
+
+### `poly` (polígono e triângulo, desde a 1.1)
+
+| Campo | Descrição |
+|---|---|
+| `points` | Lista de pontos `[x, y]`, em ordem. Um triângulo é um polígono de 3 pontos. |
+| `closed` | `true` (padrão) liga o último ponto ao primeiro; `false` = uma linha de vários pontos. |
+| `width`, `dashed`, `fill` | Como no retângulo (`fill` só vale com `closed`). |
+| `show_lengths` | Escreve a medida de cada lado, do lado de fora da forma. |
+| `show_area` | Escreve a área no centro (só com `closed`). |
+
+### `symbol` (porta, janela, escada, louças e norte, desde a 1.1)
+
+Cada símbolo é desenhado no próprio sistema: a origem é o ponto `x`, `y`; o eixo x corre ao longo da parede
+(ou do comprimento) e o eixo y aponta para dentro do cômodo. Esse sistema é girado `angle` graus (no sentido
+do relógio na tela, já que y cresce para baixo) e depois espelhado por `flip_x` e `flip_y`.
+
+| Campo | Descrição |
+|---|---|
+| `shape` | `"door"` (porta), `"door2"` (porta dupla), `"sliding"` (porta de correr), `"window"` (janela), `"stairs"` (escada), `"toilet"` (vaso sanitário), `"sink"` (pia), `"shower"` (chuveiro) ou `"north"` (norte). |
+| `x`, `y` | Meio do vão na parede (portas e janelas) ou centro (os outros). |
+| `w`, `h` | Portas e janelas: `w` é a largura do vão (`h` não é usado). Escada: comprimento e largura. Louças: largura e comprimento. Norte: o tamanho. |
+| `angle` | Rotação em graus. |
+| `flip_x` | Espelha ao longo da parede: a dobradiça do outro lado, ou a escada no outro sentido. |
+| `flip_y` | Vira para o outro lado da parede: a porta abre para o outro cômodo. |
+| `wall` | Portas e janelas: espessura da parede em que estão, em cm. Com mais de 0, o símbolo abre o vão (pinta a cor do papel por cima da parede, por isso portas e janelas são desenhadas depois de todo o resto). 0 = não abre. |
+| `steps` | Escada: número de degraus; 0 = automático, um a cada 28 cm do comprimento. |
+
+O símbolo também tem os campos de **nome** (vazio por padrão).
 
 ### `text` (texto)
 
@@ -128,6 +173,8 @@ Também tem os campos de **nome**.
 | `size` | Altura das letras, em cm da obra. |
 | `bold` | Negrito. |
 | `rot` | `0` = deitado; `90` = em pé (lido de baixo para cima). |
+| `font` | Desde a 1.1. Família da fonte; vazio = a fonte do desenho (`settings.font`). |
+| `italic` | Desde a 1.1. Itálico. |
 
 ### `dim` (medida)
 
@@ -143,7 +190,12 @@ O app nunca recusa um desenho por causa de um detalhe:
 
 - campo ausente fica com o padrão; valor de tipo errado (`"grossa"` numa largura) também;
 - números fora dos limites dos ajustes são trazidos para dentro deles; `unit` desconhecida vira `"m"`;
-- elemento de um `kind` desconhecido (de uma versão mais nova) é ignorado, e os outros são lidos;
+- elemento de um `kind` desconhecido (de uma versão mais nova) é ignorado, e os outros são lidos; o mesmo vale
+  para um `symbol` com `shape` desconhecido e para um `poly` com menos de 2 pontos;
+- pontos de `points` que não forem um par de números finitos são descartados; tamanhos negativos de um
+  símbolo viram 1 cm;
+- uma fonte que não está instalada no computador continua gravada no arquivo; na tela e no papel, o sistema usa
+  uma parecida;
 - campos a mais são ignorados;
 - arquivo com BOM do UTF-8 é aceito.
 
@@ -163,3 +215,7 @@ Só não é aceito o que não for um objeto JSON com `elements`: aí o app avisa
 `format` só sobe quando uma versão antiga do app deixaria de ler o arquivo corretamente. Campos e tipos novos
 **não** mudam o `format`: versões antigas ignoram o que não conhecem. Registre qualquer mudança neste documento
 e no [CHANGELOG](../CHANGELOG.md).
+
+| Versão | Mudança (`format` continua `1`) |
+|---|---|
+| 1.1 | Tipos `ellipse`, `poly` e `symbol`; `settings.font`; `font` e `italic` no texto; `arrow_start` e `arrow_end` na linha; `show_area` no retângulo. A 1.0 abre esses arquivos sem os elementos novos e sem as fontes. |

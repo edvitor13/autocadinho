@@ -1,0 +1,273 @@
+"""Atualização automática pelas releases do GitHub (só no Windows).
+
+Fluxo: consulta a última release, compara com a versão em uso, baixa o pacote do mesmo tipo da
+instalação atual (.msi ou .zip), confere o SHA-256 publicado em SHA256SUMS.txt e entrega a troca
+para um script do PowerShell que roda depois que o app fecha (o executável em uso não pode ser
+substituído enquanto está aberto) e abre o app de novo no fim.
+
+O tipo da instalação vem do marcador `autocadinho-install.json`, gravado ao lado do executável pelo
+build (packaging/install_marker.py): {"kind": "msi" | "zip", "version": "x.y.z"}. Sem marcador, o
+executável é tratado como .zip; rodando pelo código-fonte, não há atualização automática.
+
+Nada é enviado: a consulta é um GET na API pública do GitHub, no máximo uma vez a cada 20 horas
+(a janela principal cuida desse intervalo e da opção de desligar).
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import os
+import re
+import subprocess
+import sys
+import tempfile
+import threading
+import urllib.error
+import urllib.request
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Callable
+
+from . import APP_NAME, REPO_URL, __version__
+
+REPO = REPO_URL.removeprefix("https://github.com/")
+API_LATEST = f"https://api.github.com/repos/{REPO}/releases/latest"
+RELEASES_PAGE = f"{REPO_URL}/releases"
+SUMS_NAME = "SHA256SUMS.txt"
+MARKER = "autocadinho-install.json"
+PATTERNS = {"msi": r"-windows-x64\.msi$", "zip": r"-windows-x64\.zip$"}
+CHECK_EVERY_S = 20 * 3600
+NO_WINDOW = 0x08000000 if sys.platform == "win32" else 0
+NEW_PROCESS_GROUP = 0x00000200 if sys.platform == "win32" else 0
+
+
+class UpdateError(Exception):
+    pass
+
+
+@dataclass
+class Release:
+    tag: str
+    version: tuple
+    name: str
+    body: str
+    url: str
+    published: str
+    assets: dict[str, tuple[str, int]] = field(default_factory=dict)  # nome -> (url, tamanho)
+
+
+def parse_version(text: str) -> tuple:
+    m = re.search(r"(\d+)\.(\d+)(?:\.(\d+))?", text or "")
+    return tuple(int(x) for x in m.groups() if x is not None) if m else (0,)
+
+
+def current_version() -> tuple:
+    return parse_version(__version__)
+
+
+def auto_check_disabled() -> bool:
+    """Testes e a autoverificação do executável nunca consultam a internet."""
+    return bool(os.environ.get("AUTOCADINHO_NO_UPDATE_CHECK") or os.environ.get("AUTOCADINHO_SELFTEST"))
+
+
+def https_ok() -> bool:
+    """O Python empacotado tem o ssl (sem ele não há como falar com o GitHub)."""
+    try:
+        import ssl
+        ssl.create_default_context()
+        return True
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _headers(accept: str = "application/vnd.github+json") -> dict:
+    return {"User-Agent": f"{APP_NAME}/{__version__}", "Accept": accept}
+
+
+def check(timeout: float = 8.0) -> Release:
+    """Última release publicada. Lança UpdateError se não der para consultar."""
+    req = urllib.request.Request(API_LATEST, headers=_headers())
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            data = json.loads(r.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        if exc.code == 404:
+            raise UpdateError("no-public-release") from exc
+        raise UpdateError(f"http-{exc.code}") from exc
+    except (OSError, ValueError) as exc:
+        raise UpdateError("offline") from exc
+    if not isinstance(data, dict):
+        raise UpdateError("offline")
+    assets = {}
+    for a in data.get("assets") or []:
+        if isinstance(a, dict) and a.get("name"):
+            assets[a["name"]] = (a.get("browser_download_url") or "", int(a.get("size") or 0))
+    tag = str(data.get("tag_name") or "")
+    return Release(tag=tag, version=parse_version(tag), name=data.get("name") or tag, body=data.get("body") or "",
+                   url=data.get("html_url") or RELEASES_PAGE, published=(data.get("published_at") or "")[:10],
+                   assets=assets)
+
+
+def is_newer(rel: Release) -> bool:
+    return rel.version > current_version()
+
+
+def install_info() -> dict:
+    """Como o app foi instalado: msi, zip ou source (código-fonte)."""
+    if not getattr(sys, "frozen", False):
+        return {"kind": "source"}
+    exe_dir = Path(sys.executable).resolve().parent
+    for cand in (exe_dir / MARKER, exe_dir / "_internal" / MARKER):
+        try:
+            data = json.loads(cand.read_text(encoding="utf-8"))
+            if isinstance(data, dict) and data.get("kind") in PATTERNS:
+                return data
+        except (OSError, ValueError):
+            continue
+    return {"kind": "zip"}
+
+
+def pick_asset(rel: Release, kind: str | None = None) -> tuple[str, str, int] | None:
+    kind = kind or install_info()["kind"]
+    pat = PATTERNS.get(kind)
+    if not pat:
+        return None
+    for name, (url, size) in rel.assets.items():
+        if re.search(pat, name) and url:
+            return name, url, size
+    return None
+
+
+def can_auto_install(kind: str | None = None) -> bool:
+    kind = kind or install_info()["kind"]
+    return sys.platform == "win32" and kind in PATTERNS
+
+
+def _get(url: str, dest: Path | None, progress: Callable[[int, int], None] | None, cancel: threading.Event | None,
+         timeout: float = 60.0) -> bytes:
+    """Baixa `url`. Com `dest`, grava no arquivo e devolve o SHA-256 (hex); sem, devolve o conteúdo."""
+    req = urllib.request.Request(url, headers=_headers("*/*"))
+    h = hashlib.sha256()
+    buf = bytearray()
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            total = int(r.headers.get("Content-Length") or 0)
+            done = 0
+            fh = open(dest, "wb") if dest else None
+            try:
+                while True:
+                    if cancel is not None and cancel.is_set():
+                        raise UpdateError("cancelled")
+                    chunk = r.read(1 << 20)
+                    if not chunk:
+                        break
+                    if fh:
+                        fh.write(chunk)
+                        h.update(chunk)
+                    else:
+                        buf.extend(chunk)
+                    done += len(chunk)
+                    if progress:
+                        progress(done, total)
+            finally:
+                if fh:
+                    fh.close()
+    except urllib.error.HTTPError as exc:
+        raise UpdateError(f"http-{exc.code}") from exc
+    except OSError as exc:
+        raise UpdateError("offline") from exc
+    return h.hexdigest().encode() if dest else bytes(buf)
+
+
+def download(rel: Release, asset: tuple[str, str, int], progress: Callable[[int, int], None] | None = None,
+             cancel: threading.Event | None = None) -> str:
+    """Baixa o pacote e confere o SHA-256 com o SHA256SUMS.txt da release."""
+    name, url, _size = asset
+    sums = rel.assets.get(SUMS_NAME)
+    if not sums:
+        raise UpdateError("no-checksums")
+    sums_txt = _get(sums[0], None, None, cancel).decode("utf-8", "replace")
+    expected = None
+    for line in sums_txt.splitlines():
+        parts = line.split()
+        if len(parts) >= 2 and parts[-1].lstrip("*") == name:
+            expected = parts[0].lower()
+    if not expected:
+        raise UpdateError("no-checksums")
+    folder = Path(tempfile.mkdtemp(prefix="autocadinho_atualizacao_"))
+    dest = folder / name
+    digest = _get(url, dest, progress, cancel, timeout=120).decode()
+    if digest.lower() != expected:
+        dest.unlink(missing_ok=True)
+        raise UpdateError("checksum-mismatch")
+    return str(dest)
+
+
+def _app_dir() -> Path:
+    return Path(sys.executable).resolve().parent
+
+
+def _ps(text: str | Path) -> str:
+    """Texto entre aspas simples do PowerShell (aspas simples dentro do caminho viram duas)."""
+    return "'" + str(text).replace("'", "''") + "'"
+
+
+def spawn_powershell(script: Path) -> subprocess.Popen:
+    """Roda um .ps1 num PowerShell que continua vivo depois que o app fecha.
+
+    Não usar DETACHED_PROCESS: iniciado sem console por um app sem console (o executável do
+    PyInstaller), o powershell.exe encerra antes de rodar o script, sem erro nenhum. Com
+    CREATE_NO_WINDOW ele ganha um console próprio e invisível e sobrevive ao fim do app.
+    """
+    return subprocess.Popen(
+        ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-File", str(script)],
+        creationflags=NO_WINDOW | NEW_PROCESS_GROUP, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL, close_fds=True)
+
+
+def install(package: str, kind: str | None = None) -> None:
+    """Prepara a instalação para rodar quando o app fechar. O app deve sair logo em seguida."""
+    kind = kind or install_info()["kind"]
+    if not can_auto_install(kind):
+        raise UpdateError("unsupported")
+    pid = os.getpid()
+    exe = Path(sys.executable).resolve()
+    work = Path(package).parent
+    # O registro fica em atualizar.log (e instalar.log, do msiexec) na pasta do download.
+    head = (f"Start-Transcript -Path {_ps(work / 'atualizar.log')} -Append | Out-Null\n"
+            f"Wait-Process -Id {pid} -ErrorAction SilentlyContinue\n"
+            "Start-Sleep -Milliseconds 500\n")
+    # Reabre o app direto (CreateProcess), sem passar pelo shell do Windows: com Start-Process
+    # (ShellExecute), a primeira abertura do executável recém-instalado demorava e criava uma
+    # segunda instância passageira do app.
+    tail = ("$psi = New-Object System.Diagnostics.ProcessStartInfo\n"
+            f"$psi.FileName = {_ps(exe)}\n"
+            f"$psi.WorkingDirectory = {_ps(exe.parent)}\n"
+            "$psi.UseShellExecute = $false\n"
+            "[void][System.Diagnostics.Process]::Start($psi)\n"
+            "Stop-Transcript | Out-Null\n")
+    if kind == "msi":
+        msi_args = ", ".join(_ps(a) for a in ("/i", f'"{package}"', "/passive", "/norestart", "/l*v",
+                                              f'"{work / "instalar.log"}"'))
+        body = (head + f"$p = Start-Process msiexec.exe -ArgumentList @({msi_args}) -Wait -PassThru\n"
+                "Write-Output \"msiexec terminou com o código $($p.ExitCode)\"\n" + tail)
+    else:
+        import zipfile
+        new_dir = work / "novo"
+        try:
+            with zipfile.ZipFile(package) as z:
+                for m in z.namelist():
+                    if Path(m).is_absolute() or ".." in Path(m).parts:
+                        raise UpdateError("bad-archive")
+                z.extractall(new_dir)
+        except zipfile.BadZipFile as exc:
+            raise UpdateError("bad-archive") from exc
+        src = next((p.parent for p in new_dir.rglob("Autocadinho.exe")), None)
+        if src is None:
+            raise UpdateError("bad-archive")
+        body = (head + f"robocopy {_ps(src)} {_ps(_app_dir())} /MIR /R:3 /W:1 /NFL /NDL /NJH /NJS | Out-Null\n"
+                "Write-Output \"robocopy terminou com o código $LASTEXITCODE\"\n" + tail)
+    script = work / "atualizar.ps1"
+    script.write_text(body, encoding="utf-8-sig")
+    spawn_powershell(script)
