@@ -419,3 +419,13 @@ def test_self_test_report(win, tmp_path):
     assert r["elements"] == len(samples.mezzanine().elements)
     assert r["pdf"] > 1000 and r["png"] > 1000
     assert r["en"] == "Beam" and r["qt_pt_BR"] == "&Desfazer"
+
+
+def test_tool_buttons_fill_the_rail(win):
+    """Todos os botões de ferramenta têm a largura da coluna, não a do próprio texto."""
+    editor(win)
+    widths = {name: b.width() for name, b in win._tool_buttons.items()}
+    assert len(set(widths.values())) == 1, widths
+    rail = win._tool_buttons["select"].parentWidget()
+    m = rail.layout().contentsMargins()
+    assert widths["beam"] == rail.width() - m.left() - m.right()

@@ -15,7 +15,8 @@ import sys
 from PySide6.QtCore import QDateTime, QLocale, QPoint, QStandardPaths, Qt, QTimer
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (QButtonGroup, QFileDialog, QFrame, QGridLayout, QHBoxLayout, QLabel, QMainWindow, QMenu,
-                               QMessageBox, QStackedWidget, QStatusBar, QToolButton, QVBoxLayout, QWidget)
+                               QMessageBox, QSizePolicy, QStackedWidget, QStatusBar, QToolButton, QVBoxLayout,
+                               QWidget)
 
 from .. import APP_NAME, FILE_EXT, REPO_URL, __date__, __version__, fileio, i18n, printing, render, samples
 from ..history import History
@@ -245,6 +246,8 @@ class MainWindow(QMainWindow):
             b.setToolTip(f"{_(label).replace(chr(10), ' ')} ({key})")
             b.setCursor(Qt.CursorShape.PointingHandCursor)
             b.setMinimumHeight(58)
+            # O QToolButton tem largura fixa pelo texto; aqui todos ocupam a coluna inteira, com o ícone no meio.
+            b.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
             b.clicked.connect(lambda _c=False, n=name: self.canvas.set_tool(n))
             self._tool_group.addButton(b)
             self._tool_buttons[name] = b
