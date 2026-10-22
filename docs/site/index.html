@@ -239,7 +239,7 @@ section{padding:56px 0}.bar{gap:12px}}
       vigas, pilares, paredes, portas, janelas e medidas em centímetros de verdade, prontos para imprimir em escala.
       Feito para quem desenhava no Paint.</p>
       <div class="cta">
-        <a class="btn primary" href="https://github.com/edvitor13/autocadinho/releases/latest" data-dl="msi"><svg class="i" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M4 15v5h16v-5"/></svg><span>Baixar para Windows<small>Versão <span data-version>1.1.0</span> · .msi<span data-size="msi"></span></small></span></a>
+        <a class="btn primary" href="https://github.com/edvitor13/autocadinho/releases/latest" data-dl="msi"><svg class="i" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M4 15v5h16v-5"/></svg><span>Baixar para Windows<small><span data-version>Última versão</span> · .msi<span data-size="msi"></span></small></span></a>
         <a class="btn" href="#guia"><svg class="i" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h15M14 7l5 5-5 5"/></svg><span>Ver como usar<small>Guia passo a passo</small></span></a>
       </div>
       <ul class="badges">
@@ -374,7 +374,7 @@ section{padding:56px 0}.bar{gap:12px}}
       <h2 style="margin-top:16px">Baixe o Autocadinho</h2>
       <p class="lead" style="margin-top:10px">O instalador não pede senha de administrador e coloca o programa no Menu
       Iniciar. Prefere sem instalar? Use a versão portátil: é só extrair e abrir.</p>
-      <div class="cta"><a class="btn primary" href="https://github.com/edvitor13/autocadinho/releases/latest" data-dl="msi"><svg class="i" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M4 15v5h16v-5"/></svg><span>Baixar para Windows<small>Versão <span data-version>1.1.0</span> · .msi<span data-size="msi"></span></small></span></a> <a class="btn" href="https://github.com/edvitor13/autocadinho/releases/latest" data-dl="zip"><svg class="i" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M4 15v5h16v-5"/></svg><span>Versão portátil<small>Versão <span data-version>1.1.0</span> · .zip<span data-size="zip"></span></small></span></a></div>
+      <div class="cta"><a class="btn primary" href="https://github.com/edvitor13/autocadinho/releases/latest" data-dl="msi"><svg class="i" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M4 15v5h16v-5"/></svg><span>Baixar para Windows<small><span data-version>Última versão</span> · .msi<span data-size="msi"></span></small></span></a> <a class="btn" href="https://github.com/edvitor13/autocadinho/releases/latest" data-dl="zip"><svg class="i" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M4 15v5h16v-5"/></svg><span>Versão portátil<small><span data-version>Última versão</span> · .zip<span data-size="zip"></span></small></span></a></div>
       <ul>
         <li><svg class="i" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/><path d="M8.5 12l2.5 2.5 4.5-5"/></svg> Windows 10 e 11, 64 bits</li>
         <li><svg class="i" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg> Português e inglês</li>
@@ -471,7 +471,8 @@ section{padding:56px 0}.bar{gap:12px}}
   });
   zoom.addEventListener('click', () => zoom.close());
 
-  // Download: a última versão publicada, direto do GitHub (se não der, fica o link da página de versões).
+  // Download: os links do HTML levam à página da última versão no GitHub (releases/latest), sem número fixo.
+  // Se a API responder, viram o download direto do pacote mais novo, com versão e tamanho.
   fetch('https://api.github.com/repos/edvitor13/autocadinho/releases/latest', {headers: {Accept: 'application/vnd.github+json'}})
     .then(r => r.ok ? r.json() : Promise.reject(r.status))
     .then(rel => {
@@ -479,7 +480,7 @@ section{padding:56px 0}.bar{gap:12px}}
       const msi = find(/-windows-x64\.msi$/), zip = find(/-windows-x64\.zip$/);
       const mb = a => Math.max(1, Math.round(a.size / 1048576)) + ' MB';
       const version = String(rel.tag_name || '').replace(/^v/, '');
-      if (version) document.querySelectorAll('[data-version]').forEach(e => e.textContent = version);
+      if (version) document.querySelectorAll('[data-version]').forEach(e => e.textContent = 'Versão ' + version);
       if (msi) document.querySelectorAll('[data-dl=msi]').forEach(a => { a.href = msi.browser_download_url; });
       if (zip) document.querySelectorAll('[data-dl=zip]').forEach(a => { a.href = zip.browser_download_url; });
       if (msi) document.querySelectorAll('[data-size=msi]').forEach(e => e.textContent = ' · ' + mb(msi));

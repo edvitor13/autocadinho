@@ -176,9 +176,10 @@ atualização automática. Pré-lançamentos não são oferecidos (a API `releas
 
 `tools/make_site.py` gera `docs/site/index.html`: uma página única, em português, com as
 funcionalidades, o guia rápido e o botão de download. As capturas de `docs/img` entram em Base64 (convertidas
-para WebP, bem menores) e só são decodificadas quando chegam perto da tela, então a página abre leve. O botão de
-download aponta para a última release e, quando o navegador consegue falar com a API do GitHub, mostra a versão
-e o tamanho do `.msi`.
+para WebP, bem menores) e só são decodificadas quando chegam perto da tela, então a página abre leve. Os botões
+de download não têm versão fixa: no HTML apontam para `releases/latest` (a página da última versão no GitHub) e
+dizem "Última versão"; quando o navegador consegue falar com a API do GitHub, viram o download direto do pacote
+mais novo, com versão e tamanho. Só é preciso gerar a página de novo quando o conteúdo muda (novidades, capturas).
 
 ```bat
 .venv\Scripts\python tools\make_site.py

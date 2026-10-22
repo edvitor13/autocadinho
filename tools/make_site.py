@@ -510,7 +510,8 @@ JS = r"""
   });
   zoom.addEventListener('click', () => zoom.close());
 
-  // Download: a última versão publicada, direto do GitHub (se não der, fica o link da página de versões).
+  // Download: os links do HTML levam à página da última versão no GitHub (releases/latest), sem número fixo.
+  // Se a API responder, viram o download direto do pacote mais novo, com versão e tamanho.
   fetch('https://api.github.com/repos/@@REPO@@/releases/latest', {headers: {Accept: 'application/vnd.github+json'}})
     .then(r => r.ok ? r.json() : Promise.reject(r.status))
     .then(rel => {
@@ -518,7 +519,7 @@ JS = r"""
       const msi = find(/-windows-x64\.msi$/), zip = find(/-windows-x64\.zip$/);
       const mb = a => Math.max(1, Math.round(a.size / 1048576)) + ' MB';
       const version = String(rel.tag_name || '').replace(/^v/, '');
-      if (version) document.querySelectorAll('[data-version]').forEach(e => e.textContent = version);
+      if (version) document.querySelectorAll('[data-version]').forEach(e => e.textContent = 'Versão ' + version);
       if (msi) document.querySelectorAll('[data-dl=msi]').forEach(a => { a.href = msi.browser_download_url; });
       if (zip) document.querySelectorAll('[data-dl=zip]').forEach(a => { a.href = zip.browser_download_url; });
       if (msi) document.querySelectorAll('[data-size=msi]').forEach(e => e.textContent = ' · ' + mb(msi));
@@ -539,7 +540,7 @@ def build(out: Path) -> int:
     def dl(kind: str, label: str, primary: bool) -> str:
         cls = "btn primary" if primary else "btn"
         return (f'<a class="{cls}" href="{latest}" data-dl="{kind}">{icon("download")}'
-                f'<span>{label}<small>Versão <span data-version>{v}</span> · .{kind}'
+                f'<span>{label}<small><span data-version>Última versão</span> · .{kind}'
                 f'<span data-size="{kind}"></span></small></span></a>')
 
     new_cards = "".join(f'<div class="card"><div class="ic">{icon(i)}</div><h3>{t}</h3><p>{d}</p></div>'
