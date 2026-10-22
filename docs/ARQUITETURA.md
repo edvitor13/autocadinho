@@ -170,7 +170,8 @@ autocadinho/
 - `install()` escreve um `atualizar.ps1` e o lança com `CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP` (nunca
   `DETACHED_PROCESS`: sem console, o PowerShell morreria antes de rodar). O script espera o app fechar, roda o
   `msiexec /i … /passive` (com log) ou extrai o `.zip` (recusando caminhos que saem da pasta) e espelha com
-  `robocopy /MIR`, e abre o app de novo. Tudo fica registrado num `Start-Transcript` na pasta temporária.
+  `robocopy /MIR`, apaga o pacote e a pasta extraída e abre o app de novo. Tudo fica registrado num
+  `Start-Transcript` na pasta temporária (`autocadinho_atualizacao_*`), que o próximo download apaga.
 - **Na janela** (`MainWindow`): 4 s depois de abrir, se a busca automática estiver ligada (`auto_update`) e a
   última consulta tiver mais de 20 h (`update_last_check`), consulta numa thread (`_UpdateBridge`). A versão
   nova vista fica em `update_seen`, então o aviso volta nas próximas aberturas sem consultar de novo; `update_skip`

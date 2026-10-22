@@ -4,6 +4,13 @@ Todas as mudanças de cada versão do Autocadinho. O formato segue o
 [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/), e as versões seguem o
 [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
+## [Não publicado]
+
+### Correções
+
+- Depois de instalar uma atualização, o pacote baixado e a pasta extraída do `.zip` são apagados da pasta
+  temporária (ficam só os registros), e as pastas de atualizações anteriores são apagadas no download seguinte.
+
 ## [1.1.0] - 2026-10-22
 
 ### Novidades

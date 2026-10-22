@@ -22,6 +22,15 @@ import install_marker  # noqa: E402
 NAMES = ["Autocadinho-9.0.0-windows-x64.msi", "Autocadinho-9.0.0-windows-x64.zip", "SHA256SUMS.txt"]
 
 
+@pytest.fixture(autouse=True)
+def _temp_folder(tmp_path, monkeypatch):
+    """Downloads numa pasta do teste, nunca no %TEMP% de quem roda."""
+    temp = tmp_path / "temp"
+    temp.mkdir()
+    monkeypatch.setattr(updater.tempfile, "tempdir", str(temp))
+    return temp
+
+
 def release(names, tag="v9.0.0"):
     assets = {n: (f"https://example.invalid/{n}", 10) for n in names}
     return updater.Release(tag=tag, version=updater.parse_version(tag), name=tag, body="", url="u",
@@ -119,17 +128,21 @@ def test_check_no_release_and_offline(monkeypatch):
         updater.check()
 
 
-def test_download_verifies_checksum(monkeypatch):
+def test_download_verifies_checksum(monkeypatch, _temp_folder):
     payload = b"conteudo do instalador" * 100
     rel = release(NAMES)
     name = NAMES[1]
+    asset = (name, rel.assets[name][0], len(payload))
     routes = {rel.assets[name][0]: payload,
               rel.assets["SHA256SUMS.txt"][0]: f"{hashlib.sha256(payload).hexdigest()}  {name}\n".encode()}
     monkeypatch.setattr(updater.urllib.request, "urlopen", fake_urlopen(routes))
+    first = Path(updater.download(rel, asset)).parent
+    assert first.parent == _temp_folder and first.name.startswith(updater.WORK_PREFIX)
     seen = []
-    path = updater.download(rel, (name, rel.assets[name][0], len(payload)), lambda d, t: seen.append((d, t)))
+    path = updater.download(rel, asset, lambda d, t: seen.append((d, t)))
     assert Path(path).read_bytes() == payload
     assert seen[-1] == (len(payload), len(payload))
+    assert not first.exists()  # a pasta do download anterior foi apagada
 
 
 def test_download_rejects_bad_or_missing_checksum(monkeypatch):
@@ -206,6 +219,7 @@ def test_install_msi_writes_logged_script(tmp_path, monkeypatch):
     assert "msiexec.exe" in body and "'/passive'" in body and "'/l*v'" in body and "instalar.log" in body
     assert body.index("msiexec.exe") < body.index("Process]::Start(") < body.index("Stop-Transcript")
     assert "$psi.UseShellExecute = $false" in body and "App d''Ana" in body
+    assert body.index("Remove-Item -LiteralPath") > body.index("msiexec.exe")  # tira o pacote depois
     assert _parse_errors(spawned[0]) == "0"
 
 

@@ -19,6 +19,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -35,6 +36,7 @@ REPO = REPO_URL.removeprefix("https://github.com/")
 API_LATEST = f"https://api.github.com/repos/{REPO}/releases/latest"
 RELEASES_PAGE = f"{REPO_URL}/releases"
 SUMS_NAME = "SHA256SUMS.txt"
+WORK_PREFIX = "autocadinho_atualizacao_"  # pastas de download em %TEMP%
 MARKER = "autocadinho-install.json"
 PATTERNS = {"msi": r"-windows-x64\.msi$", "zip": r"-windows-x64\.zip$"}
 CHECK_EVERY_S = 20 * 3600
@@ -195,13 +197,21 @@ def download(rel: Release, asset: tuple[str, str, int], progress: Callable[[int,
             expected = parts[0].lower()
     if not expected:
         raise UpdateError("no-checksums")
-    folder = Path(tempfile.mkdtemp(prefix="autocadinho_atualizacao_"))
+    clean_old_downloads()
+    folder = Path(tempfile.mkdtemp(prefix=WORK_PREFIX))
     dest = folder / name
     digest = _get(url, dest, progress, cancel, timeout=120).decode()
     if digest.lower() != expected:
         dest.unlink(missing_ok=True)
         raise UpdateError("checksum-mismatch")
     return str(dest)
+
+
+def clean_old_downloads() -> None:
+    """Apaga as pastas de atualizações anteriores em %TEMP% (o script já tirou os pacotes; sobram os logs)."""
+    for folder in Path(tempfile.gettempdir()).glob(WORK_PREFIX + "*"):
+        if folder.is_dir():
+            shutil.rmtree(folder, ignore_errors=True)
 
 
 def _app_dir() -> Path:
@@ -241,7 +251,10 @@ def install(package: str, kind: str | None = None) -> None:
     # Reabre o app direto (CreateProcess), sem passar pelo shell do Windows: com Start-Process
     # (ShellExecute), a primeira abertura do executável recém-instalado demorava e criava uma
     # segunda instância passageira do app.
-    tail = ("$psi = New-Object System.Diagnostics.ProcessStartInfo\n"
+    # Depois de instalar, o pacote (e a pasta extraída do .zip) não serve mais; os logs ficam.
+    tail = (f"Remove-Item -LiteralPath {_ps(package)} -Force -ErrorAction SilentlyContinue\n"
+            f"Remove-Item -LiteralPath {_ps(work / 'novo')} -Recurse -Force -ErrorAction SilentlyContinue\n"
+            "$psi = New-Object System.Diagnostics.ProcessStartInfo\n"
             f"$psi.FileName = {_ps(exe)}\n"
             f"$psi.WorkingDirectory = {_ps(exe.parent)}\n"
             "$psi.UseShellExecute = $false\n"
