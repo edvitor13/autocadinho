@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Instalador .msi do Autocadinho (WiX Toolset v5).
+
+  Instalação por usuário (sem pedir administrador) em %LOCALAPPDATA%\Programs\Autocadinho.
+  Monte com packaging/windows/build_msi.ps1, que passa as variáveis abaixo:
+
+    -d Version=x.y.z        versão do app (só números; o MSI não aceita sufixos)
+    -d SourceDir=...        pasta gerada pelo PyInstaller (dist\Autocadinho)
+    -d RepoDir=...          raiz do repositório (ícones)
+    -d LicenseRtf=...       licença MIT em RTF (gerada a partir de LICENSE)
+
+  NUNCA mude o UpgradeCode: é ele que faz um .msi novo substituir o antigo no mesmo lugar.
+
+  Propriedades públicas úteis na linha de comando do msiexec:
+    ABRIR_APOS_INSTALAR=1   abre o app quando a instalação termina (útil com /passive ou /qn)
+    INSTALLFOLDER=C:\...    outra pasta (só na primeira instalação; depois a pasta é lembrada)
+    ADDLOCAL / REMOVE       escolher recursos: AtalhoDesktop, AssociacaoCadinho
+-->
+<?ifndef Version?>
+<?error Defina -d Version=x.y.z?>
+<?endif?>
+<?ifndef SourceDir?>
+<?error Defina -d SourceDir=pasta do PyInstaller?>
+<?endif?>
+<?ifndef RepoDir?>
+<?error Defina -d RepoDir=raiz do repositório?>
+<?endif?>
+<?ifndef LicenseRtf?>
+<?error Defina -d LicenseRtf=arquivo .rtf da licença?>
+<?endif?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+
+  <Package Name="Autocadinho"
+           Manufacturer="Autocadinho"
+           Version="$(var.Version)"
+           UpgradeCode="F81443AD-B7EE-487E-BDE7-2982D3CE847D"
+           Scope="perUser"
+           Language="1046"
+           Codepage="1252"
+           InstallerVersion="500">
+
+    <SummaryInformation Description="Instalador do Autocadinho $(var.Version)"
+                        Manufacturer="Autocadinho"
+                        Codepage="1252" />
+
+    <!-- Versão nova substitui a antiga no mesmo lugar; a mesma versão pode ser reinstalada. -->
+    <MajorUpgrade AllowSameVersionUpgrades="yes"
+                  DowngradeErrorMessage="Uma versão mais nova do [ProductName] já está instalada. Para voltar a esta versão, desinstale a atual antes." />
+
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+
+    <!-- Adicionar ou remover programas: ícone e links -->
+    <Icon Id="Autocadinho.ico" SourceFile="$(var.RepoDir)\assets\logo.ico" />
+    <Property Id="ARPPRODUCTICON" Value="Autocadinho.ico" />
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/edvitor13/autocadinho" />
+    <Property Id="ARPHELPLINK" Value="https://github.com/edvitor13/autocadinho/issues" />
+    <Property Id="ARPURLUPDATEINFO" Value="https://github.com/edvitor13/autocadinho/releases" />
+    <Property Id="ARPCOMMENTS" Value="Desenhos simples de obra: vigas, pilares, medidas e textos, para salvar e imprimir." />
+
+    <!-- Lembra a pasta escolhida: atualizações instalam no mesmo lugar. -->
+    <Property Id="INSTALLFOLDER" Secure="yes">
+      <RegistrySearch Id="PastaDaInstalacao" Root="HKCU" Key="Software\Autocadinho\Instalador"
+                      Name="InstallDir" Type="raw" />
+    </Property>
+    <Property Id="ABRIR_APOS_INSTALAR" Secure="yes" />
+
+    <!-- Pastas -->
+    <StandardDirectory Id="LocalAppDataFolder">
+      <Directory Id="ProgramasDoUsuario" Name="Programs">
+        <Directory Id="INSTALLFOLDER" Name="Autocadinho" />
+      </Directory>
+    </StandardDirectory>
+    <StandardDirectory Id="ProgramMenuFolder" />
+    <StandardDirectory Id="DesktopFolder" />
+
+    <!-- Recursos. A instalação comum instala todos; ADDLOCAL/REMOVE no msiexec escolhem. -->
+    <Feature Id="Principal" Title="Autocadinho"
+             Description="O aplicativo e o atalho no Menu Iniciar."
+             Level="1" AllowAbsent="no" AllowAdvertise="no">
+
+      <Component Id="ExecutavelPrincipal" Directory="INSTALLFOLDER" Guid="022FC3C4-D45C-4AFC-BE02-FB6F022037EC">
+        <File Id="AutocadinhoExe" Source="$(var.SourceDir)\Autocadinho.exe" KeyPath="no" />
+        <!-- Instalação por usuário: a chave do componente fica no HKCU (e guarda a pasta). As preferências
+             do app ficam em HKCU\Software\Autocadinho\Autocadinho e não são tocadas pelo instalador. -->
+        <RegistryValue Root="HKCU" Key="Software\Autocadinho\Instalador" Name="InstallDir" Type="string"
+                       Value="[INSTALLFOLDER]" KeyPath="yes" />
+        <RemoveFolder Id="RemoverPastaDoApp" On="uninstall" />
+      </Component>
+
+      <!-- Todo o resto da pasta do PyInstaller (_internal) -->
+      <Files Directory="INSTALLFOLDER" Include="$(var.SourceDir)\**">
+        <Exclude Files="$(var.SourceDir)\Autocadinho.exe" />
+      </Files>
+
+      <Component Id="AtalhoMenuIniciar" Directory="ProgramMenuFolder" Guid="F2045980-6073-463F-B12E-688C996C2529">
+        <Shortcut Id="AtalhoNoMenu" Name="Autocadinho"
+                  Description="Desenhos simples de obra para salvar e imprimir"
+                  Target="[#AutocadinhoExe]" WorkingDirectory="INSTALLFOLDER" />
+        <RegistryValue Root="HKCU" Key="Software\Autocadinho\Instalador" Name="AtalhoMenuIniciar" Type="integer"
+                       Value="1" KeyPath="yes" />
+      </Component>
+
+      <Feature Id="AtalhoDesktop" Title="Atalho na Área de Trabalho"
+               Description="Cria um atalho do Autocadinho na Área de Trabalho."
+               Level="1" AllowAdvertise="no">
+        <Component Id="AtalhoAreaDeTrabalho" Directory="DesktopFolder" Guid="D4E32432-8B70-43BE-BF2F-6B58CF9854E2">
+          <Shortcut Id="AtalhoNaAreaDeTrabalho" Name="Autocadinho"
+                    Description="Desenhos simples de obra para salvar e imprimir"
+                    Target="[#AutocadinhoExe]" WorkingDirectory="INSTALLFOLDER" />
+          <RegistryValue Root="HKCU" Key="Software\Autocadinho\Instalador" Name="AtalhoAreaDeTrabalho" Type="integer"
+                         Value="1" KeyPath="yes" />
+        </Component>
+      </Feature>
+
+      <Feature Id="AssociacaoCadinho" Title="Abrir desenhos .cadinho com o Autocadinho"
+               Description="Associa os desenhos (.cadinho) ao Autocadinho: dois cliques abrem o desenho."
+               Level="1" AllowAdvertise="no">
+        <Component Id="AssociacaoCadinho" Directory="INSTALLFOLDER" Guid="FB17FE19-037E-420D-A68E-2115FE5EEFC4">
+          <File Id="IconeDoDesenho" Source="$(var.RepoDir)\assets\documento.ico" Name="desenho.ico" KeyPath="no" />
+          <RegistryValue Root="HKCU" Key="Software\Autocadinho\Instalador" Name="AssociacaoCadinho" Type="integer"
+                         Value="1" KeyPath="yes" />
+          <!-- Por usuário, o HKCR do MSI vai para HKCU\Software\Classes. -->
+          <ProgId Id="Autocadinho.Desenho" Description="Desenho do Autocadinho"
+                  Icon="IconeDoDesenho" IconIndex="0" Advertise="no">
+            <Extension Id="cadinho" ContentType="application/x-autocadinho">
+              <Verb Id="open" Command="Abrir" TargetFile="AutocadinhoExe" Argument="&quot;%1&quot;" />
+            </Extension>
+          </ProgId>
+        </Component>
+      </Feature>
+    </Feature>
+
+    <!-- Interface simples: licença MIT, instalar, fim (com a opção de abrir o app). -->
+    <WixVariable Id="WixUILicenseRtf" Value="$(var.LicenseRtf)" />
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Abrir o Autocadinho agora" />
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" />
+    <Property Id="WixShellExecTarget" Value="[#AutocadinhoExe]" />
+    <CustomAction Id="AbrirAutocadinho" BinaryRef="Wix4UtilCA_$(sys.BUILDARCHSHORT)" DllEntry="WixShellExec"
+                  Impersonate="yes" Return="ignore" />
+    <UI>
+      <ui:WixUI Id="WixUI_Minimal" />
+      <Publish Dialog="ExitDialog" Control="Finish" Event="DoAction" Value="AbrirAutocadinho"
+               Condition="WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 AND NOT Installed" />
+    </UI>
+    <!-- Sem interface (/passive, /qn): ABRIR_APOS_INSTALAR=1 abre o app no fim. -->
+    <InstallExecuteSequence>
+      <Custom Action="AbrirAutocadinho" After="InstallFinalize"
+              Condition="ABRIR_APOS_INSTALAR = 1 AND NOT (REMOVE ~= &quot;ALL&quot;)" />
+    </InstallExecuteSequence>
+  </Package>
+</Wix>

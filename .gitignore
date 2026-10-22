@@ -15,7 +15,6 @@ dist/
 *.zip
 *.msi
 *.wixpdb
-autocadinho-install.json
 
 # ---------------------------------------------------------------- testes e ferramentas
 .pytest_cache/

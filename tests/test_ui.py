@@ -404,3 +404,18 @@ def test_help_and_about_build(win, monkeypatch):
     monkeypatch.setattr(QMessageBox, "about", lambda *a: shown.append(a[2]))
     win.show_about()
     assert "MIT" in shown[0]
+
+
+def test_self_test_report(win, tmp_path):
+    """A autoverificação que o CI roda no executável empacotado (AUTOCADINHO_SELFTEST)."""
+    import json
+
+    from autocadinho.app import self_test
+    i18n.set_language("pt_BR")  # instala a tradução do próprio Qt (precisa da QApplication)
+    out = tmp_path / "relatorio.json"
+    self_test(win, str(out))
+    r = json.loads(out.read_text(encoding="utf-8"))
+    assert r["ok"], r
+    assert r["elements"] == len(samples.mezzanine().elements)
+    assert r["pdf"] > 1000 and r["png"] > 1000
+    assert r["en"] == "Beam" and r["qt_pt_BR"] == "&Desfazer"

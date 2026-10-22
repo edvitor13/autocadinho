@@ -54,7 +54,42 @@ def set_language(code: str) -> str:
         QLocale.setDefault(QLocale("pt_BR" if code == "pt_BR" else "en_US"))
     except ImportError:
         pass
+    _install_qt_translations(code)
     return code
+
+
+_qt_translator = None
+
+
+def qt_translations_dir() -> str:
+    """Pasta das traduções do próprio Qt: a do PySide6 instalado (ou a que vai dentro do executável)."""
+    import PySide6
+    from PySide6.QtCore import QLibraryInfo
+    bundled = Path(PySide6.__file__).resolve().parent / "translations"
+    if bundled.is_dir():
+        return str(bundled)
+    return QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)
+
+
+def _install_qt_translations(code: str) -> None:
+    """Textos do próprio Qt no idioma do app: menu do botão direito nos campos e a janela de cores."""
+    global _qt_translator
+    try:
+        from PySide6.QtCore import QCoreApplication, QLocale, QTranslator
+    except ImportError:
+        return
+    app = QCoreApplication.instance()
+    if app is None:
+        return
+    if _qt_translator is not None:
+        app.removeTranslator(_qt_translator)
+        _qt_translator = None
+    if code == "en":  # o Qt já é em inglês
+        return
+    tr = QTranslator(app)
+    if tr.load(QLocale(code), "qtbase", "_", qt_translations_dir()):
+        app.installTranslator(tr)
+        _qt_translator = tr
 
 
 def language() -> str:

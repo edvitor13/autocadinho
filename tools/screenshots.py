@@ -31,6 +31,7 @@ def shoot(out: Path, lang: str = "pt_BR") -> None:
     i18n.set_language(lang)
     suffix = "" if lang == "pt_BR" else "-en"
     win = MainWindow()
+    win.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen)  # não aparece na tela de quem roda
     win.resize(1440, 880)
     win.show()
     app = QApplication.instance()
@@ -56,6 +57,7 @@ def shoot(out: Path, lang: str = "pt_BR") -> None:
     win.set_theme("light")
     win.canvas.set_selection([])
     dlg = PrintDialog(win, win.canvas.doc, os.path.join(_tmp, "x"))
+    dlg.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen)
     dlg.resize(1100, 720)
     dlg.show()
     app.processEvents()

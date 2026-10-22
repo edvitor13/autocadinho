@@ -1,0 +1,202 @@
+name: Build
+
+# - Todo push e PR: só os testes (Windows), rápido.
+# - Push no main, tags v* e execução manual (workflow_dispatch): testes + executável (PyInstaller)
+#   conferido pela autoverificação do app + instalador .msi (WiX), instalado, atualizado e removido
+#   de verdade no runner + .zip portátil.
+# - Tags v* (por exemplo v1.0.0): publica a Release com o .msi, o .zip e o SHA256SUMS.txt, usando
+#   docs/releases/<tag>.md como texto.
+# Detalhes em docs/DESENVOLVIMENTO.md.
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.15"
+  WIX_VERSION: "5.0.2"
+
+jobs:
+  # ------------------------------------------------------------------ testes (sempre)
+  testes:
+    name: Testes (Windows x64)
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@v4
+
+      - name: Instalar o Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          allow-prereleases: true
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Instalar dependências
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.txt
+          python --version
+
+      # Inclui a conferência do catálogo de tradução (tests/test_i18n.py usa tools/i18n_extract.py).
+      - name: Testes
+        run: python -m pytest -q
+
+  # ------------------------------------------------------------------ pacotes Windows
+  build:
+    name: Pacotes (Windows x64)
+    needs: testes
+    # Só no main, em tags v* e na execução manual (que serve para validar outras branches).
+    if: >-
+      ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'push'
+      && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))) }}
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@v4
+
+      - name: Instalar o Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          allow-prereleases: true
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Instalar dependências
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.txt
+
+      - name: Versão e nome dos pacotes
+        id: meta
+        shell: bash
+        run: |
+          ver=$(python -c "import autocadinho; print(autocadinho.__version__)")
+          if ! grep -q "^version = \"$ver\"" pyproject.toml; then
+            echo "::error::O pyproject.toml não está na versão $ver (autocadinho/__init__.py)."
+            exit 1
+          fi
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            case "$GITHUB_REF_NAME" in
+              "v$ver" | "v$ver"-*) ;;
+              *) echo "::error::A tag $GITHUB_REF_NAME não bate com a versão do app ($ver, em autocadinho/__init__.py)."
+                 exit 1 ;;
+            esac
+            label="${GITHUB_REF_NAME#v}"
+          else
+            label="$ver-${GITHUB_SHA::7}"
+          fi
+          echo "ver=$ver" >> "$GITHUB_OUTPUT"
+          echo "base=Autocadinho-$label-windows-x64" >> "$GITHUB_OUTPUT"
+          echo "Versão $ver; pacotes Autocadinho-$label-windows-x64.*"
+
+      - name: Gerar o executável (PyInstaller)
+        run: |
+          python -m PyInstaller --noconfirm --clean Autocadinho.spec
+          Get-ChildItem dist/Autocadinho | Format-Table Name, Length
+
+      - name: Conferir o executável (autoverificação do app)
+        env:
+          VER: ${{ steps.meta.outputs.ver }}
+        run: ./packaging/windows/verificar_exe.ps1 -Exe dist/Autocadinho/Autocadinho.exe -Version $env:VER
+
+      - name: Instalar o WiX Toolset ${{ env.WIX_VERSION }}
+        run: |
+          dotnet tool install --global wix --version $env:WIX_VERSION
+          $tools = Join-Path $env:USERPROFILE ".dotnet\tools"
+          Add-Content -Path $env:GITHUB_PATH -Value $tools
+          & (Join-Path $tools "wix.exe") --version
+
+      - name: Montar o instalador .msi
+        env:
+          BASE: ${{ steps.meta.outputs.base }}
+          VER: ${{ steps.meta.outputs.ver }}
+        run: ./packaging/windows/build_msi.ps1 -SourceDir dist/Autocadinho -Output "$env:BASE.msi" -Version $env:VER -WixVersion $env:WIX_VERSION
+
+      - name: Testar o .msi (instalar, atualizar e desinstalar)
+        timeout-minutes: 25
+        env:
+          BASE: ${{ steps.meta.outputs.base }}
+          VER: ${{ steps.meta.outputs.ver }}
+        run: ./packaging/windows/verificar_msi.ps1 -Msi "$env:BASE.msi" -Version $env:VER
+
+      - name: Montar o .zip portátil
+        env:
+          BASE: ${{ steps.meta.outputs.base }}
+        run: |
+          python packaging/make_zip.py dist/Autocadinho "$env:BASE.zip"
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          Get-Item "$env:BASE.msi", "$env:BASE.zip" | Format-Table Name, Length
+
+      - name: Enviar artefatos
+        uses: actions/upload-artifact@v4
+        with:
+          name: Autocadinho-windows-x64
+          path: ${{ steps.meta.outputs.base }}.*
+          if-no-files-found: error
+          compression-level: 0
+
+  # ------------------------------------------------------------------ release (tags v*)
+  release:
+    name: Publicar release
+    needs: build
+    if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Baixar o código (notas da versão)
+        uses: actions/checkout@v4
+
+      - name: Baixar os pacotes gerados
+        uses: actions/download-artifact@v4
+        with:
+          pattern: Autocadinho-*
+          path: pacotes
+          merge-multiple: true
+
+      - name: Gerar o SHA256SUMS.txt
+        working-directory: pacotes
+        run: |
+          sha256sum Autocadinho-* > SHA256SUMS.txt
+          ls -l
+          cat SHA256SUMS.txt
+
+      - name: Escolher as notas da versão
+        id: notas
+        run: |
+          f="docs/releases/${GITHUB_REF_NAME}.md"
+          if [ -f "$f" ]; then
+            echo "Notas da versão: $f"
+            { echo "arquivo=$f"; echo "gerar=false"; } >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::$f não existe; usando as notas geradas pelo GitHub."
+            { echo "arquivo="; echo "gerar=true"; } >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Criar a release com o instalador e o pacote portátil
+        uses: softprops/action-gh-release@v2
+        with:
+          files: pacotes/*
+          body_path: ${{ steps.notas.outputs.arquivo }}
+          generate_release_notes: ${{ steps.notas.outputs.gerar == 'true' }}
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          fail_on_unmatched_files: true

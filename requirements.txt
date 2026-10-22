@@ -1,0 +1,2 @@
+# Interface gráfica: só os módulos essenciais do Qt (Core, Gui, Widgets e PrintSupport).
+PySide6-Essentials>=6.8,<7

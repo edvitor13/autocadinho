@@ -1,0 +1,4 @@
+# Para rodar os testes e gerar o executável (o instalar.bat instala só o requirements.txt).
+-r requirements.txt
+pytest>=8
+pyinstaller>=6.10
