@@ -1,0 +1,39 @@
+# ---------------------------------------------------------------- ambiente Python
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+
+# ---------------------------------------------------------------- build (PyInstaller)
+build/
+dist/
+*.spec
+!Autocadinho.spec
+*.zip
+*.msi
+*.wixpdb
+autocadinho-install.json
+
+# ---------------------------------------------------------------- testes e ferramentas
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# ---------------------------------------------------------------- editores e sistema
+.vscode/
+.idea/
+*.swp
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# ---------------------------------------------------------------- desenhos locais
+# Desenhos de teste e arquivos temporários de gravação nunca entram no repositório.
+*.cadinho
+*.tmp
