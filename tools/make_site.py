@@ -108,6 +108,11 @@ ICONS = {
     "code": '<path d="M8 8l-4 4 4 4M16 8l4 4-4 4M14 4l-4 16"/>',
     "stairs": '<path d="M3 20h5v-4h4v-4h4V8h5"/>',
     "arrow": '<path d="M4 12h15M14 7l5 5-5 5"/>',
+    "gift": '<rect x="3" y="8" width="18" height="4" rx="1"/><path d="M5 12v9h14v-9M12 8v13"/>'
+            '<path d="M12 8C10.5 4.5 7 3 6.5 5.5S9 8 12 8zM12 8c1.5-3.5 5-5 5.5-2.5S15 8 12 8z"/>',
+    "windows": '<path d="M3 5.6 10.5 4.5v7H3zM12.5 4.2 21 3v8.5h-8.5zM3 12.5h7.5v7L3 18.4zM12.5 12.5H21V21l-8.5-1.2z"/>',
+    "folder": '<path d="M3 6.5A1.5 1.5 0 0 1 4.5 5H9l2 2.5h8.5A1.5 1.5 0 0 1 21 9v9.5a1.5 1.5 0 0 1-1.5 1.5h-15'
+              'A1.5 1.5 0 0 1 3 18.5z"/>',
     "area": '<path d="M4 4h16v16H4z" stroke-dasharray="3 2.4"/><path d="M8 15l3-6 2 4 1.5-2 1.5 4"/>',
     "shield": '<path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/><path d="M8.5 12l2.5 2.5 4.5-5"/>',
     "github": '<path d="M9 19c-4 1.5-4-2-6-2.5M15 21v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6 0 0 0-1.3-3.2 '
@@ -166,7 +171,7 @@ FEATURES = [
     ("shield", "Sem cadastro e sem internet",
      "Desenhar, salvar e imprimir funcionam sem internet. A busca de atualizações não envia nada e pode ser desligada."),
     ("code", "Grátis e de código aberto",
-     "Licença MIT. Use, copie e compartilhe à vontade; o código está no GitHub."),
+     "Sem versão paga e sem anúncios. Licença MIT: use, copie e compartilhe à vontade; o código está no GitHub."),
 ]
 
 GALLERY = [
@@ -320,6 +325,28 @@ border:1px solid var(--border);font-size:.86rem;font-weight:600;color:var(--mute
 .lead{font-size:clamp(1.02rem,1.8vw,1.18rem);color:var(--muted);max-width:640px;margin:0 auto}
 .cta{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin:30px 0 14px}
 .fine{font-size:.86rem;color:var(--faint)}
+.badges{list-style:none;display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:4px 0 0;padding:0}
+.badges li{display:inline-flex;align-items:center;gap:7px;padding:6px 13px;border-radius:999px;background:var(--panel);
+border:1px solid var(--border);font-size:.88rem;font-weight:600;color:var(--muted)}
+.badges li.hi{background:var(--accent-soft);border-color:color-mix(in srgb,var(--accent) 30%,transparent);color:var(--accent)}
+.band{padding:8px 0 0}
+.open{display:grid;grid-template-columns:1.05fr 1fr;gap:36px;align-items:center;border-radius:24px;padding:46px;
+color:#fff;background:radial-gradient(120% 140% at 0% 0%,#e0692a 0%,#c4521b 45%,#9c3d14 100%);
+box-shadow:0 18px 40px rgba(156,61,20,.28)}
+.open .kicker{color:#ffe0cc}
+.open h2{color:#fff}
+.open p{color:#fff3eb}
+.open .cta{justify-content:flex-start;margin:26px 0 0}
+.open ul{list-style:none;margin:0;padding:0;display:grid;gap:12px}
+.open li{display:grid;grid-template-columns:44px 1fr;gap:14px;align-items:start;background:rgba(255,255,255,.1);
+border:1px solid rgba(255,255,255,.18);border-radius:16px;padding:16px}
+.open li .ic{display:grid;place-items:center;width:44px;height:44px;border-radius:12px;background:rgba(255,255,255,.16)}
+.open li b{display:block;font-size:1.02rem}
+.open li span{display:block;color:#ffe9dc;font-size:.93rem;margin-top:2px}
+.btn.light{background:#fff;border-color:#fff;color:#9c3d14}
+.btn.light:hover{background:#fff4ec;border-color:#fff4ec}
+.btn.ghost{background:transparent;border-color:rgba(255,255,255,.55);color:#fff}
+.btn.ghost:hover{border-color:#fff;background:rgba(255,255,255,.08)}
 .hero .shot{margin-top:46px}
 
 /* capturas */
@@ -401,7 +428,7 @@ dialog{border:none;padding:0;background:transparent;max-width:min(96vw,1600px);m
 dialog::backdrop{background:rgba(10,12,16,.82)}
 dialog img{display:block;max-width:min(96vw,1600px);max-height:94vh;width:auto;height:auto;border-radius:10px;cursor:zoom-out}
 
-@media (max-width:900px){.new,.two{grid-template-columns:1fr}.step.has-shot{grid-template-columns:52px 1fr}
+@media (max-width:900px){.new,.two,.open{grid-template-columns:1fr}.open{padding:32px 24px}.step.has-shot{grid-template-columns:52px 1fr}
 .step.has-shot .shot{grid-column:1/-1}nav a:not(.keep){display:none}}
 @media (max-width:560px){.wrap{padding:0 16px}.hero{padding-top:48px}.new .grid{grid-template-columns:1fr}
 .step{grid-template-columns:1fr;gap:12px}.step.has-shot{grid-template-columns:1fr}td:first-child{white-space:normal}
@@ -547,6 +574,7 @@ def build(out: Path) -> int:
         "@@I_GITHUB@@": icon("github", 18), "@@I_SUN@@": icon("sun", 18).replace('class="i"', 'class="i sun"'),
         "@@I_MOON@@": icon("moon", 18).replace('class="i"', 'class="i moon"'), "@@I_WIN@@": icon("shield", 18),
         "@@I_CODE@@": icon("code", 18), "@@I_GLOBE@@": icon("globe", 18), "@@I_ARROW@@": icon("arrow", 18),
+        "@@I_GIFT@@": icon("gift", 18), "@@I_WINDOWS@@": icon("windows", 18), "@@I_FOLDER@@": icon("folder", 18),
     }.items():
         page = page.replace(token, value)
     leftover = [t for t in page.split("@@")[1::2] if t.isupper() and len(t) < 20]
@@ -564,8 +592,8 @@ TEMPLATE = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>@@APP@@: desenhos de obra simples, com as medidas certas</title>
-<meta name="description" content="Programa grátis para Windows para desenhar plantas de obra simples: vigas, pilares,
+<title>@@APP@@: desenhos de obra simples, grátis e de código aberto</title>
+<meta name="description" content="Programa grátis e de código aberto para Windows para desenhar plantas de obra simples: vigas, pilares,
 paredes, portas, janelas e medidas em centímetros de verdade, prontas para imprimir em escala.">
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#e8722c">
@@ -580,6 +608,7 @@ paredes, portas, janelas e medidas em centímetros de verdade, prontas para impr
   <div class="wrap bar">
     <a class="brand" href="#">@@LOGO32@@<span>@@APP@@</span></a>
     <nav aria-label="Seções">
+      <a href="#aberto">Grátis e aberto</a>
       <a href="#novidades">Novidades</a>
       <a href="#recursos">Recursos</a>
       <a href="#telas">Telas</a>
@@ -587,6 +616,7 @@ paredes, portas, janelas e medidas em centímetros de verdade, prontas para impr
       <a href="#perguntas">Perguntas</a>
     </nav>
     @@DL_MSI_SM@@
+    <a class="iconbtn" href="@@REPO_URL@@" title="Código no GitHub" aria-label="Código no GitHub">@@I_GITHUB@@</a>
     <button class="iconbtn" id="tema" type="button" title="Tema claro ou escuro" aria-label="Trocar o tema">@@I_MOON@@@@I_SUN@@</button>
   </div>
 </header>
@@ -597,18 +627,48 @@ paredes, portas, janelas e medidas em centímetros de verdade, prontas para impr
     <div class="hero-text">
       <a class="pill" href="#novidades"><b>Novo</b> Versão @@VERSION@@: portas, janelas, formas e atualização automática</a>
       <h1>Desenhos de obra simples, <em>com as medidas certas</em>.</h1>
-      <p class="lead">O @@APP@@ é um programa pequeno, grátis e fácil para plantas de obra: vigas, pilares, paredes,
-      portas, janelas e medidas em centímetros de verdade, prontos para imprimir em escala. Feito para quem desenhava
-      no Paint.</p>
+      <p class="lead">O @@APP@@ é um programa pequeno e fácil, <b>grátis e de código aberto</b>, para plantas de obra:
+      vigas, pilares, paredes, portas, janelas e medidas em centímetros de verdade, prontos para imprimir em escala.
+      Feito para quem desenhava no Paint.</p>
       <div class="cta">
         @@DL_MSI@@
         <a class="btn" href="#guia">@@I_ARROW@@<span>Ver como usar<small>Guia passo a passo</small></span></a>
       </div>
-      <p class="fine">Windows 10 e 11 · Português e inglês · Sem cadastro e sem anúncios</p>
+      <ul class="badges">
+        <li class="hi">@@I_GIFT@@ 100% grátis</li>
+        <li class="hi">@@I_CODE@@ Código aberto (MIT)</li>
+        <li>@@I_WIN@@ Sem cadastro e sem anúncios</li>
+        <li>@@I_WINDOWS@@ Windows 10 e 11</li>
+      </ul>
     </div>
     @@HERO@@
   </div>
 </div>
+
+<section id="aberto" class="band">
+  <div class="wrap">
+    <div class="open">
+      <div>
+        <span class="kicker">Grátis e de código aberto</span>
+        <h2>Grátis de verdade, sem pegadinha</h2>
+        <p style="margin-top:14px">O @@APP@@ não tem versão paga, período de teste, anúncio nem cadastro. E o código é
+        aberto, sob a licença MIT: qualquer pessoa pode ver como ele funciona, usar, copiar, mudar e compartilhar.</p>
+        <div class="cta">
+          <a class="btn light" href="@@REPO_URL@@">@@I_GITHUB@@<span>Ver o código no GitHub</span></a>
+          <a class="btn ghost" href="@@REPO_URL@@/blob/main/LICENSE">@@I_CODE@@<span>Licença MIT</span></a>
+        </div>
+      </div>
+      <ul>
+        <li><span class="ic">@@I_GIFT@@</span><div><b>Sem custo nenhum</b><span>Sem versão paga, sem teste de 30 dias e
+        sem anúncios. Use quanto quiser, em quantos computadores quiser.</span></div></li>
+        <li><span class="ic">@@I_CODE@@</span><div><b>Código aberto</b><span>Todo o código está no GitHub: dá para
+        conferir o que o programa faz, sugerir melhorias ou adaptar para o seu uso.</span></div></li>
+        <li><span class="ic">@@I_FOLDER@@</span><div><b>Seus desenhos são seus</b><span>Os arquivos ficam no seu
+        computador, num formato aberto e documentado. Nada do que você desenha vai para a internet.</span></div></li>
+      </ul>
+    </div>
+  </div>
+</section>
 
 <section id="novidades">
   <div class="wrap new">
@@ -690,7 +750,8 @@ paredes, portas, janelas e medidas em centímetros de verdade, prontas para impr
       <ul>
         <li>@@I_WIN@@ Windows 10 e 11, 64 bits</li>
         <li>@@I_GLOBE@@ Português e inglês</li>
-        <li>@@I_CODE@@ Grátis, licença MIT</li>
+        <li>@@I_GIFT@@ 100% grátis</li>
+        <li>@@I_CODE@@ Código aberto (MIT)</li>
       </ul>
       <p class="fine" style="margin-top:18px">Todas as versões e o SHA256SUMS.txt para conferir os arquivos estão na
       <a href="@@REPO_URL@@/releases">página de versões</a>.</p>
@@ -701,7 +762,7 @@ paredes, portas, janelas e medidas em centímetros de verdade, prontas para impr
 
 <footer>
   <div class="wrap">
-    <span>@@APP@@ @@VERSION@@ · @@DATE@@ · Licença MIT · Feito com Python e Qt</span>
+    <span>@@APP@@ @@VERSION@@ · @@DATE@@ · Grátis e de código aberto (licença MIT) · Feito com Python e Qt</span>
     <a href="@@REPO_URL@@">@@I_GITHUB@@ Código no GitHub</a>
   </div>
 </footer>
