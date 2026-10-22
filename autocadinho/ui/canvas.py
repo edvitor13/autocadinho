@@ -21,8 +21,8 @@ from .. import geometry as geo
 from .. import render
 from ..geometry import Point
 from ..i18n import _
-from ..model import (Beam, Dimension, Document, Element, Labeled, Line, Pillar, Rect, Segment, Text, beam_prefix,
-                     new_id, pillar_prefix, selection_center)
+from ..model import (Beam, Dimension, Document, Element, Labeled, Line, Pillar, Rect, Segment, Text, new_id,
+                     selection_center)
 from . import theme
 
 TOOLS = ("select", "beam", "line", "pillar", "rect", "dim", "text", "erase", "pan")
@@ -617,7 +617,7 @@ class Canvas(QWidget):
         ok = el.w >= 1 and el.h >= 1 if isinstance(el, Rect) else el.length() >= 1  # type: ignore[union-attr]
         if ok:
             if isinstance(el, Beam):
-                el.label = self.doc.next_label(beam_prefix())
+                el.label = self.doc.next_label(self.doc.beam_prefix)
             self.doc.add(el)
             self.set_selection([el.id])
             self.changed.emit("add")
@@ -640,7 +640,7 @@ class Canvas(QWidget):
 
     def _place_pillar(self, w: Point) -> None:
         p = self._pillar_ghost(w)
-        p.label = self.doc.next_label(pillar_prefix())
+        p.label = self.doc.next_label(self.doc.pillar_prefix)
         self.doc.add(p)
         self.set_selection([p.id])
         self.changed.emit("add")
@@ -792,11 +792,12 @@ class Canvas(QWidget):
         return True
 
     def _renumber(self, el: Element) -> None:
-        """Cópias de vigas e pilares numerados ganham o próximo número livre."""
-        if isinstance(el, Beam) and el.label.upper().startswith(beam_prefix().upper()):
-            el.label = self.doc.next_label(beam_prefix())
-        elif isinstance(el, Pillar) and el.label.upper().startswith(pillar_prefix().upper()):
-            el.label = self.doc.next_label(pillar_prefix())
+        """Cópias de vigas e pilares com nome automático ganham o próximo número livre."""
+        bp, pp = self.doc.beam_prefix, self.doc.pillar_prefix
+        if isinstance(el, Beam) and bp and el.label.upper().startswith(bp.upper()):
+            el.label = self.doc.next_label(bp)
+        elif isinstance(el, Pillar) and pp and el.label.upper().startswith(pp.upper()):
+            el.label = self.doc.next_label(pp)
 
     def paste_elements(self, items: list[dict], offset: Point) -> list[str]:
         ids = []

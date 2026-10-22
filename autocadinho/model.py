@@ -349,10 +349,12 @@ class Dimension(Element):
 
 
 def beam_prefix() -> str:
+    """Prefixo padrão do nome automático das vigas, no idioma do app."""
     return _("VIGA")
 
 
 def pillar_prefix() -> str:
+    """Prefixo padrão do nome automático dos pilares, no idioma do app."""
     return _("P")
 
 
@@ -367,9 +369,14 @@ class Document:
     pillar_w: float = 40.0  # tamanho dos pilares novos (cm)
     pillar_h: float = 20.0
     snap_step: float = 10.0  # passo da grade de encaixe (cm)
+    # Nomes automáticos: "VIGA" dá VIGA 1, VIGA 2…; "P" dá P1, P2…; vazio = sem nome automático.
+    beam_prefix: str = field(default_factory=beam_prefix)
+    pillar_prefix: str = field(default_factory=pillar_prefix)
     elements: list[Element] = field(default_factory=list)
 
-    SETTINGS: ClassVar[tuple[str, ...]] = ("unit", "label_size", "beam_width", "pillar_w", "pillar_h", "snap_step")
+    SETTINGS: ClassVar[tuple[str, ...]] = ("unit", "label_size", "beam_width", "pillar_w", "pillar_h", "snap_step",
+                                           "beam_prefix", "pillar_prefix")
+    PREFIX_MAX = 24
     LIMITS: ClassVar[dict[str, tuple[float, float]]] = {
         "label_size": (2.0, 500.0), "beam_width": (1.0, 200.0), "pillar_w": (1.0, 500.0),
         "pillar_h": (1.0, 500.0), "snap_step": (0.0, 500.0),
@@ -399,6 +406,8 @@ class Document:
             doc.unit = "m"
         for k, (lo, hi) in cls.LIMITS.items():
             setattr(doc, k, min(max(getattr(doc, k), lo), hi))
+        doc.beam_prefix = doc.beam_prefix.strip()[:cls.PREFIX_MAX]
+        doc.pillar_prefix = doc.pillar_prefix.strip()[:cls.PREFIX_MAX]
         seen: set[str] = set()
         for item in data.get("elements") or []:
             if not isinstance(item, dict):
@@ -442,7 +451,10 @@ class Document:
         self.elements = [e for e in self.elements if e.id in ids] + [e for e in self.elements if e.id not in ids]
 
     def next_label(self, prefix: str) -> str:
-        """Próximo nome livre: "VIGA 3" (prefixo longo, com espaço) ou "P4" (prefixo curto)."""
+        """Próximo nome livre: "VIGA 3" (prefixo longo, com espaço) ou "P4" (prefixo curto). Sem prefixo, ""."""
+        prefix = prefix.strip()
+        if not prefix:
+            return ""
         pat = re.compile(rf"^\s*{re.escape(prefix)}\s*(\d+)\s*$", re.IGNORECASE)
         n = 0
         for el in self.elements:

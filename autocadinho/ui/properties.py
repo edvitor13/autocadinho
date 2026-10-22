@@ -10,7 +10,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Callable
 
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtWidgets import (QAbstractSpinBox, QButtonGroup, QCheckBox, QComboBox, QDoubleSpinBox, QFrame, QGridLayout,
+from PySide6.QtGui import QColor
+from PySide6.QtWidgets import (QAbstractSpinBox, QButtonGroup, QCheckBox, QColorDialog, QComboBox, QDoubleSpinBox, QFrame,
+                               QGridLayout,
                                QHBoxLayout, QLabel, QLineEdit, QPlainTextEdit, QPushButton, QScrollArea, QSizePolicy,
                                QToolButton, QVBoxLayout, QWidget)
 
@@ -41,13 +43,13 @@ TOOL_TIPS = {
                N_("Clique num desenho para escolher e arraste para mover. Arraste as bolinhas para mudar o tamanho. "
                   "Duplo clique muda um nome ou um texto. A tecla Delete apaga.")),
     "beam": ("beam", N_("Viga"),
-             N_("Clique onde a viga começa e arraste até onde ela termina. Ela ganha um nome sozinha (VIGA 1, VIGA 2…). "
-                "Depois, digite o comprimento exato aqui do lado.")),
+             N_("Traço grosso com nome: vigas, paredes, muros. Clique onde começa e arraste até onde termina. "
+                "Ele ganha um nome sozinho (VIGA 1, VIGA 2…). Depois, digite o comprimento exato aqui do lado.")),
     "line": ("line", N_("Linha"),
              N_("Para escadas, aberturas, paredes finas e detalhes. Clique e arraste. Ela pode ser tracejada.")),
     "pillar": ("pillar", N_("Pilar"),
-               N_("Clique para colocar o pilar. Ele encaixa nas pontas e no meio das vigas. "
-                  "A tecla R deixa o pilar em pé ou deitado.")),
+               N_("Bloco cheio com nome: pilares, sapatas, caixas. Clique para colocar; ele encaixa nas pontas e no "
+                  "meio das vigas. A tecla R deixa o bloco em pé ou deitado.")),
     "rect": ("rect", N_("Retângulo"),
              N_("Clique num canto e arraste até o canto oposto. Bom para lajes, aberturas e áreas.")),
     "dim": ("dim", N_("Medida"),
@@ -241,7 +243,10 @@ class PropertiesPanel(QScrollArea):
         group.setExclusive(True)
         current = elements[0].color if all(el.color == elements[0].color for el in elements) else None
         t = theme.current()
-        for value, name in COLORS:
+        swatches = list(COLORS)
+        if current and current.lower() not in {v for v, _n in COLORS}:
+            swatches.append((current, N_("Cor escolhida")))
+        for value, name in swatches:
             b = QToolButton()
             b.setObjectName("Swatch")
             b.setCheckable(True)
@@ -253,8 +258,22 @@ class PropertiesPanel(QScrollArea):
             b.clicked.connect(lambda _c=False, v=value: self._set_color(elements, v))
             group.addButton(b)
             row.addWidget(b)
+        more = QToolButton()
+        more.setObjectName("Swatch")
+        icons.bind(more, "plus", "muted", 14)
+        more.setToolTip(_("Outra cor…"))
+        more.setCursor(Qt.CursorShape.PointingHandCursor)
+        more.clicked.connect(lambda: self._pick_color(elements, current))
+        row.addWidget(more)
         row.addStretch(1)
         return box
+
+    def _pick_color(self, elements: list[Element], current: str | None) -> None:
+        start = QColor(current) if current else QColor(theme.current().ink)
+        color = QColorDialog.getColor(start, self, _("Escolher a cor"))
+        if color.isValid():
+            self._set_color(elements, color.name())
+            self.rebuild_later()
 
     def _set_color(self, elements: list[Element], value: str) -> None:
         for el in elements:
@@ -330,6 +349,17 @@ class PropertiesPanel(QScrollArea):
         snap.setToolTip(_("Os desenhos encaixam nos pontos da grade, de tantos em tantos centímetros."))
         self._field(_("Encaixe"), snap)
 
+        self._section(_("Nomes automáticos"))
+        self._field(_("Vigas"), self._line_edit(doc.beam_prefix, lambda v: self._set_prefix("beam_prefix", v),
+                                                _("sem nome")))
+        self._field(_("Pilares"), self._line_edit(doc.pillar_prefix, lambda v: self._set_prefix("pillar_prefix", v),
+                                                  _("sem nome")))
+        note = QLabel(_("Cada viga ou pilar novo ganha o próximo número (VIGA 1, VIGA 2… ou P1, P2…). "
+                        "Troque a palavra (PAREDE, SAPATA…) ou deixe vazio para desenhar sem nome."))
+        note.setObjectName("Faint")
+        note.setWordWrap(True)
+        self._wide(note)
+
         self._section(_("Tamanhos"))
         self._field(_("Letras"), self._cm(doc.label_size, 2, 500, lambda v: self._set_doc("label_size", v), 1, 1))
         self._field(_("Vigas novas"), self._cm(doc.beam_width, 1, 200, lambda v: self._set_doc("beam_width", v), 1, 1))
@@ -359,6 +389,10 @@ class PropertiesPanel(QScrollArea):
     def _set_title(self, text: str) -> None:
         self.doc.title = text
         self._commit("title")
+
+    def _set_prefix(self, key: str, text: str) -> None:
+        setattr(self.doc, key, text.strip()[:self.doc.PREFIX_MAX])
+        self._commit(f"doc:{key}")
 
     def _set_doc(self, key: str, value, rebuild: bool = False) -> None:
         setattr(self.doc, key, value)
@@ -418,7 +452,7 @@ class PropertiesPanel(QScrollArea):
             self._wide(edit)
             self._field(_("Letras"), self._cm(el.size, 2, 1000, lambda v: self._set(el, "size", v, "size"), 1, 1))
             self._wide(self._check(_("Negrito"), el.bold, lambda v: self._set(el, "bold", v, "bold")))
-            self._wide(self._check(_("Em pé"), bool(el.rot), lambda v: self._set(el, "rot", 90 if v else 0, "rot")))
+            self._wide(self._check(_("Texto em pé"), bool(el.rot), lambda v: self._set(el, "rot", 90 if v else 0, "rot")))
         elif isinstance(el, Dimension):
             self._section(_("Medida"))
             value = QLabel(render.fmt_len(el.length(), self.doc))

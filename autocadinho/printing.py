@@ -10,18 +10,22 @@ from __future__ import annotations
 import json
 from dataclasses import asdict, dataclass
 
-from PySide6.QtCore import QBuffer, QByteArray, QDate, QIODevice, QLocale, QMarginsF, QPointF, QRectF
+from PySide6.QtCore import QBuffer, QByteArray, QDate, QIODevice, QLocale, QMarginsF, QPointF, QRectF, QSizeF
 from PySide6.QtGui import QColor, QImage, QPageLayout, QPageSize, QPainter, QPdfWriter, QPen
 
 from . import APP_NAME, render
 from .i18n import N_, _
 from .model import Document
 
-PAPERS = {"A4": QPageSize.PageSizeId.A4, "A3": QPageSize.PageSizeId.A3, "Letter": QPageSize.PageSizeId.Letter}
-PAPER_MM = {"A4": (210.0, 297.0), "A3": (297.0, 420.0), "Letter": (215.9, 279.4)}
-PAPER_LABELS = {"A4": "A4", "A3": "A3", "Letter": N_("Carta")}
+# Tamanho de cada papel em milímetros (em pé). O Ofício (216 × 330 mm) não tem tamanho pronto no Qt.
+PAPER_MM = {"A4": (210.0, 297.0), "A3": (297.0, 420.0), "A2": (420.0, 594.0), "Letter": (215.9, 279.4),
+            "Oficio": (216.0, 330.0)}
+PAPER_IDS = {"A4": QPageSize.PageSizeId.A4, "A3": QPageSize.PageSizeId.A3, "A2": QPageSize.PageSizeId.A2,
+             "Letter": QPageSize.PageSizeId.Letter}
+PAPERS = tuple(PAPER_MM)
+PAPER_LABELS = {"A4": "A4", "A3": "A3", "A2": "A2", "Letter": N_("Carta"), "Oficio": N_("Ofício")}
 ORIENTATIONS = {"auto": N_("Automática"), "landscape": N_("Deitada"), "portrait": N_("Em pé")}
-SCALES = (0, 20, 25, 50, 75, 100, 200)
+SCALES = (0, 10, 20, 25, 50, 75, 100, 150, 200)
 
 MARGIN = 10.0  # mm
 HEADER_H = 15.0
@@ -84,9 +88,17 @@ def page_mm(opts: PageOptions, doc: Document) -> tuple[float, float]:
     return (h, w) if landscape(opts, doc) else (w, h)
 
 
+def page_size(paper: str) -> QPageSize:
+    if paper in PAPER_IDS:
+        return QPageSize(PAPER_IDS[paper])
+    w, h = PAPER_MM.get(paper, PAPER_MM["A4"])
+    return QPageSize(QSizeF(w, h), QPageSize.Unit.Millimeter, _(PAPER_LABELS.get(paper, paper)),
+                     QPageSize.SizeMatchPolicy.ExactMatch)
+
+
 def page_layout(opts: PageOptions, doc: Document) -> QPageLayout:
     orient = QPageLayout.Orientation.Landscape if landscape(opts, doc) else QPageLayout.Orientation.Portrait
-    return QPageLayout(QPageSize(PAPERS.get(opts.paper, PAPERS["A4"])), orient, QMarginsF(0, 0, 0, 0))
+    return QPageLayout(page_size(opts.paper), orient, QMarginsF(0, 0, 0, 0))
 
 
 def compute_layout(doc: Document, opts: PageOptions, page: tuple[float, float] | None = None) -> Layout:

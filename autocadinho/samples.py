@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from . import render
 from .i18n import _
-from .model import Beam, Dimension, Document, Labeled, Pillar, beam_prefix, pillar_prefix
+from .model import Beam, Dimension, Document, Labeled, Pillar
 
 W, H = 1000.0, 620.0  # 10,00 m × 6,20 m
 
@@ -52,7 +52,7 @@ def _flip_label(el: Labeled, doc: Document, sx: float, sy: float) -> None:
 
 def mezzanine() -> Document:
     doc = Document(title=_("Mezanino (exemplo)"))
-    bp, pp = beam_prefix(), pillar_prefix()
+    bp, pp = doc.beam_prefix, doc.pillar_prefix
     for i, (x1, y1, x2, y2, side, shift) in enumerate(BEAMS, start=1):
         b = Beam(x1=x1, y1=y1, x2=x2, y2=y2, width=doc.beam_width, label=f"{bp} {i}")
         if side == "standing":

@@ -32,6 +32,9 @@ SECTIONS = [
            "medidas exatas: digite o comprimento certo (por exemplo, 3,50 m) e o desenho acompanha."),
         N_("Arraste para mover. Arraste as bolinhas das pontas para esticar ou encurtar. Arraste o nome de uma "
            "viga ou de um pilar para tirá-lo de cima de outro desenho. Duplo clique muda um nome ou um texto."),
+        N_("Cada desenho pode ter a sua cor (as prontas ou <b>Outra cor…</b>) e a sua espessura. Sem nada "
+           "selecionado, o painel mostra os ajustes do desenho: tamanho das letras, medidas em metros ou "
+           "centímetros e os nomes automáticos (troque VIGA e P por outra palavra, ou deixe vazio)."),
         N_("Errou? <b>Ctrl+Z</b> desfaz (quantas vezes precisar) e <b>Ctrl+Y</b> refaz. A <b>Borracha</b> apaga "
            "o que você clicar."),
     ]),
@@ -40,9 +43,10 @@ SECTIONS = [
            "aparecem na tela inicial, com uma miniatura."),
         N_("Enquanto você desenha, o Autocadinho guarda uma cópia de segurança. Se o computador desligar "
            "sem salvar, ele oferece recuperar o desenho na próxima vez que abrir."),
-        N_("<b>Imprimir</b> mostra a folha como vai sair. Escolha o papel e a escala: \"Ajustar à folha\" usa a "
-           "folha toda; numa escala exata, como 1:50, dá para medir no papel com a régua (1 cm = 50 cm). "
-           "Dali também dá para salvar em PDF ou como imagem, para mandar por e-mail ou WhatsApp."),
+        N_("<b>Imprimir</b> mostra a folha como vai sair. Escolha o papel (A4, A3, A2, Carta ou Ofício), a "
+           "posição da folha e a escala: \"Ajustar à folha\" usa a folha toda; numa escala exata, como 1:50, dá "
+           "para medir no papel com a régua (1 cm = 50 cm). Dali também dá para salvar em PDF ou como imagem, "
+           "para mandar por e-mail ou WhatsApp."),
     ]),
 ]
 
