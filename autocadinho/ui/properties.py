@@ -71,6 +71,7 @@ class _Spin(QDoubleSpinBox):
         self.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.lineEdit().setTextMargins(7, 0, 0, 0)  # o campo interno ignora o padding da folha de estilo
 
     def wheelEvent(self, e) -> None:  # noqa: N802
         if self.hasFocus():
@@ -105,7 +106,6 @@ class PropertiesPanel(QScrollArea):
 
     # ------------------------------------------------------------------------------ montagem
     def rebuild(self) -> None:
-        old = self.widget()
         body = QWidget()
         body.setObjectName("Side")
         self._lay = QVBoxLayout(body)
@@ -120,6 +120,8 @@ class PropertiesPanel(QScrollArea):
         else:
             self._build_multi(sel)
         self._lay.addStretch(1)
+        # setWidget() apagaria o antigo na hora; tirado antes, ele some depois (pode estar no meio de um clique).
+        old = self.takeWidget()
         self.setWidget(body)
         if old is not None:
             old.deleteLater()

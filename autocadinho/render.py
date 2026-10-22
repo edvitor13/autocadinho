@@ -54,6 +54,8 @@ def text_font(bold: bool) -> QFont:
     f.setWeight(QFont.Weight.Bold if bold else QFont.Weight.Normal)
     f.setHintingPreference(QFont.HintingPreference.PreferNoHinting)
     f.setKerning(True)
+    # Sem ClearType: o texto do desenho é girado e escalado, e o subpixel deixaria franjas coloridas.
+    f.setStyleStrategy(QFont.StyleStrategy.NoSubpixelAntialias)
     return f
 
 

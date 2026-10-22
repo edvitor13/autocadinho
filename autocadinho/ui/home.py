@@ -36,7 +36,6 @@ class HomePage(QScrollArea):
     def refresh(self, has_doc: bool | None = None) -> None:
         if has_doc is not None:
             self._has_doc = has_doc
-        old = self.widget()
         page = QWidget()
         page.setObjectName("Home")
         outer = QHBoxLayout(page)
@@ -111,6 +110,8 @@ class HomePage(QScrollArea):
         tip.setObjectName("Faint")
         tip.setWordWrap(True)
         lay.addWidget(tip)
+        # setWidget() apagaria o antigo na hora; tirado antes, ele some depois (pode estar no meio de um clique).
+        old = self.takeWidget()
         self.setWidget(page)
         if old is not None:
             old.deleteLater()

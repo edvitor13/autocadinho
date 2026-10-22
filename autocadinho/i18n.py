@@ -49,6 +49,11 @@ def set_language(code: str) -> str:
         code = "en"
     _lang = code
     _catalog = load_catalog(code)
+    try:  # datas no formato do idioma (22/10/2026 ou 10/22/2026)
+        from PySide6.QtCore import QLocale
+        QLocale.setDefault(QLocale("pt_BR" if code == "pt_BR" else "en_US"))
+    except ImportError:
+        pass
     return code
 
 

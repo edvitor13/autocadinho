@@ -631,6 +631,13 @@ class Canvas(QWidget):
             pw, ph = ph, pw
         return Pillar(x=pt[0], y=pt[1], w=pw, h=ph)
 
+    def turn_pillar_ghost(self) -> None:
+        """Alterna o próximo pilar entre em pé e deitado (tecla R com a ferramenta Pilar)."""
+        self._pillar_turned = not self._pillar_turned
+        if self._last_pos is not None:
+            self._preview = self._pillar_ghost(self.to_world(self._last_pos))
+        self.update()
+
     def _place_pillar(self, w: Point) -> None:
         p = self._pillar_ghost(w)
         p.label = self.doc.next_label(pillar_prefix())
@@ -676,11 +683,14 @@ class Canvas(QWidget):
             self.changed.emit("nudge")
             self.update()
             return
-        if k == Qt.Key.Key_R and self.tool == "pillar" and not e.modifiers():
-            self._pillar_turned = not self._pillar_turned
-            if self._last_pos is not None:
-                self._preview = self._pillar_ghost(self.to_world(self._last_pos))
-            self.update()
+        if k == Qt.Key.Key_R and not e.modifiers():
+            if self.tool == "pillar":
+                self.turn_pillar_ghost()
+            elif self.selection:
+                self.rotate_selection()
+            return
+        if k in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace) and self.selection:
+            self.delete_selection()
             return
         if k in (Qt.Key.Key_Shift, Qt.Key.Key_Alt, Qt.Key.Key_Control):
             self._refresh_from_cursor()

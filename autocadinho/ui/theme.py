@@ -234,7 +234,8 @@ QLineEdit, QSpinBox, QDoubleSpinBox, QPlainTextEdit {{
 }}
 QLineEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus, QPlainTextEdit:focus {{ border-color: {t.accent}; }}
 QLineEdit#Inline {{ background: {t.panel}; border: 2px solid {t.accent}; border-radius: 6px; padding: 2px 6px; }}
-QSpinBox::up-button, QSpinBox::down-button, QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {{ width: 0; border: none; }}
+QAbstractSpinBox::up-button, QAbstractSpinBox::down-button {{ subcontrol-origin: border; width: 0px; height: 0px; border: none; }}
+QAbstractSpinBox QLineEdit {{ border: none; background: transparent; padding: 0; }}
 
 QCheckBox {{ spacing: 8px; }}
 QCheckBox::indicator {{ width: 18px; height: 18px; border-radius: 5px; border: 1px solid {t.border_hi}; background: {t.panel2}; }}
